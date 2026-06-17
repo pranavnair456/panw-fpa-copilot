@@ -1,0 +1,107 @@
+{
+  "FY2021Q3": {
+    "accn": "0001327567-21-000012",
+    "exhibit": "ex991q321earningsrelease.htm",
+    "url": "https://www.sec.gov/Archives/edgar/data/1327567/000132756721000012/ex991q321earningsrelease.htm"
+  },
+  "FY2021Q4": {
+    "accn": "0001327567-21-000020",
+    "exhibit": "ex991q421earningsrelease.htm",
+    "url": "https://www.sec.gov/Archives/edgar/data/1327567/000132756721000020/ex991q421earningsrelease.htm"
+  },
+  "FY2022Q1": {
+    "accn": "0001327567-21-000037",
+    "exhibit": "ex991q122earningsrelease.htm",
+    "url": "https://www.sec.gov/Archives/edgar/data/1327567/000132756721000037/ex991q122earningsrelease.htm"
+  },
+  "FY2022Q2": {
+    "accn": "0001327567-22-000006",
+    "exhibit": "ex991q222earningsrelease.htm",
+    "url": "https://www.sec.gov/Archives/edgar/data/1327567/000132756722000006/ex991q222earningsrelease.htm"
+  },
+  "FY2022Q3": {
+    "accn": "0001327567-22-000014",
+    "exhibit": "ex991q322earningsrelease.htm",
+    "url": "https://www.sec.gov/Archives/edgar/data/1327567/000132756722000014/ex991q322earningsrelease.htm"
+  },
+  "FY2022Q4": {
+    "accn": "0001327567-22-000020",
+    "exhibit": "ex991q422earningsrelease.htm",
+    "url": "https://www.sec.gov/Archives/edgar/data/1327567/000132756722000020/ex991q422earningsrelease.htm"
+  },
+  "FY2023Q1": {
+    "accn": "0001327567-22-000035",
+    "exhibit": "ex991q123earningsrelease.htm",
+    "url": "https://www.sec.gov/Archives/edgar/data/1327567/000132756722000035/ex991q123earningsrelease.htm"
+  },
+  "FY2023Q2": {
+    "accn": "0001327567-23-000005",
+    "exhibit": "ex991q223earningsrelease.htm",
+    "url": "https://www.sec.gov/Archives/edgar/data/1327567/000132756723000005/ex991q223earningsrelease.htm"
+  },
+  "FY2023Q3": {
+    "accn": "0001327567-23-000012",
+    "exhibit": "ex991q323earningsrelease.htm",
+    "url": "https://www.sec.gov/Archives/edgar/data/1327567/000132756723000012/ex991q323earningsrelease.htm"
+  },
+  "FY2023Q4": {
+    "accn": "0001327567-23-000020",
+    "exhibit": "ex991q423earningsrelease.htm",
+    "url": "https://www.sec.gov/Archives/edgar/data/1327567/000132756723000020/ex991q423earningsrelease.htm"
+  },
+  "FY2024Q1": {
+    "accn": "0001327567-23-000030",
+    "exhibit": "ex991q124earningsrelease.htm",
+    "url": "https://www.sec.gov/Archives/edgar/data/1327567/000132756723000030/ex991q124earningsrelease.htm"
+  },
+  "FY2024Q2": {
+    "accn": "0001327567-24-000003",
+    "exhibit": "ex991q224earningsrelease.htm",
+    "url": "https://www.sec.gov/Archives/edgar/data/1327567/000132756724000003/ex991q224earningsrelease.htm"
+  },
+  "FY2024Q3": {
+    "accn": "0001327567-24-000015",
+    "exhibit": "ex991q324earningsrelease.htm",
+    "url": "https://www.sec.gov/Archives/edgar/data/1327567/000132756724000015/ex991q324earningsrelease.htm"
+  },
+  "FY2024Q4": {
+    "accn": "0001327567-24-000023",
+    "exhibit": "ex991q424earningsrelease.htm",
+    "url": "https://www.sec.gov/Archives/edgar/data/1327567/000132756724000023/ex991q424earningsrelease.htm"
+  },
+  "FY2025Q1": {
+    "accn": "0001327567-24-000036",
+    "exhibit": "ex991q125earningsrelease.htm",
+    "url": "https://www.sec.gov/Archives/edgar/data/1327567/000132756724000036/ex991q125earningsrelease.htm"
+  },
+  "FY2025Q2": {
+    "accn": "0001327567-25-000006",
+    "exhibit": "ex991q225earningsrelease.htm",
+    "url": "https://www.sec.gov/Archives/edgar/data/1327567/000132756725000006/ex991q225earningsrelease.htm"
+  },
+  "FY2025Q3": {
+    "accn": "0001327567-25-000015",
+    "exhibit": "ex991q325earningsrelease.htm",
+    "url": "https://www.sec.gov/Archives/edgar/data/1327567/000132756725000015/ex991q325earningsrelease.htm"
+  },
+  "FY2025Q4": {
+    "accn": "0001327567-25-000024",
+    "exhibit": "ex991q425earningsrelease.htm",
+    "url": "https://www.sec.gov/Archives/edgar/data/1327567/000132756725000024/ex991q425earningsrelease.htm"
+  },
+  "FY2026Q1": {
+    "accn": "0001327567-25-000032",
+    "exhibit": "ex991q126earningsrelease.htm",
+    "url": "https://www.sec.gov/Archives/edgar/data/1327567/000132756725000032/ex991q126earningsrelease.htm"
+  },
+  "FY2026Q2": {
+    "accn": "0001327567-26-000003",
+    "exhibit": "ex991q226earningsrelease.htm",
+    "url": "https://www.sec.gov/Archives/edgar/data/1327567/000132756726000003/ex991q226earningsrelease.htm"
+  },
+  "FY2026Q3": {
+    "accn": "0001327567-26-000012",
+    "exhibit": "ex991q326earningsrelease.htm",
+    "url": "https://www.sec.gov/Archives/edgar/data/1327567/000132756726000012/ex991q326earningsrelease.htm"
+  }
+}

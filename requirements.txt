@@ -1,0 +1,10 @@
+# PANW AI FP&A Copilot — pinned-ish deps (Python 3.11+)
+pandas>=2.0
+numpy>=1.24
+statsmodels>=0.14
+scikit-learn>=1.3
+plotly>=5.18
+streamlit>=1.30
+pytest>=7.4
+anthropic>=0.40          # LLM layer (Stages 4-5, V3) — Claude
+python-dotenv>=1.0       # load ANTHROPIC_API_KEY from .env

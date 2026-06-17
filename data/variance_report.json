@@ -1,0 +1,133 @@
+{
+  "quarter": "FY2026Q3",
+  "summary": {
+    "actual_total": 3002.0,
+    "actual_organic": 2614.0,
+    "inorganic": 388.0,
+    "forecast_organic": 2563.9,
+    "guidance_midpoint": 2943.0,
+    "vs_guidance_$": 59.0,
+    "vs_guidance_%": 2.0,
+    "vs_guidance_flag": "Favorable",
+    "organic_beat_$": 50.1,
+    "inorganic_share_of_beat_%": 88.6
+  },
+  "notes": [
+    "Bridge reconciles: 2563.9 + 50.1 (organic beat) + 388.0 (inorganic) = 3002.0.",
+    "Inorganic revenue is PERMANENT/structural (ongoing acquired businesses: CyberArk identity security + Chronosphere observability).",
+    "Organic outperformance tagged likely-permanent (run-rate), but timing vs permanent can't be fully separated without internal bookings data.",
+    "Guidance was issued FY2026Q2 \u2014 AFTER CyberArk closed (Feb 11, 2026) \u2014 so it already embedded the acquisitions; the vs-guidance beat is mostly execution, not the acquisition itself.",
+    "Segment beats are raw: the $388 M inorganic revenue is not split by segment in disclosure, so it inflates both Product and Subscription variances."
+  ],
+  "vs_guidance": [
+    {
+      "line": "Total revenue vs guidance midpoint",
+      "actual": 3002.0,
+      "plan": 2943.0,
+      "variance": 59.0,
+      "variance_pct": 2.0,
+      "flag": "Favorable",
+      "unit": "$M"
+    },
+    {
+      "line": "Total revenue vs guidance low",
+      "actual": 3002.0,
+      "plan": 2941.0,
+      "variance": 61.0,
+      "variance_pct": 2.07,
+      "flag": "Favorable",
+      "unit": "$M"
+    },
+    {
+      "line": "Total revenue vs guidance high",
+      "actual": 3002.0,
+      "plan": 2945.0,
+      "variance": 57.0,
+      "variance_pct": 1.94,
+      "flag": "Favorable",
+      "unit": "$M"
+    }
+  ],
+  "vs_forecast": [
+    {
+      "line": "Organic revenue vs forecast",
+      "actual": 2614.0,
+      "plan": 2563.9,
+      "variance": 50.1,
+      "variance_pct": 1.95,
+      "flag": "Favorable",
+      "unit": "$M"
+    },
+    {
+      "line": "Total revenue vs forecast (organic basis)",
+      "actual": 3002.0,
+      "plan": 2563.9,
+      "variance": 438.1,
+      "variance_pct": 17.09,
+      "flag": "Favorable",
+      "unit": "$M"
+    }
+  ],
+  "bridge": [
+    {
+      "step": "Forecast (organic)",
+      "amount": 2563.9,
+      "kind": "start"
+    },
+    {
+      "step": "Organic outperformance",
+      "amount": 50.1,
+      "kind": "favorable"
+    },
+    {
+      "step": "Inorganic (CyberArk + Chronosphere)",
+      "amount": 388.0,
+      "kind": "inorganic"
+    },
+    {
+      "step": "Actual (total reported)",
+      "amount": 3002.0,
+      "kind": "end"
+    }
+  ],
+  "segment_attribution": [
+    {
+      "line": "Product revenue vs forecast",
+      "actual": 594.0,
+      "plan": 498.5,
+      "variance": 95.5,
+      "variance_pct": 19.16,
+      "flag": "Favorable",
+      "unit": "$M"
+    },
+    {
+      "line": "Subscription & support vs forecast",
+      "actual": 2408.0,
+      "plan": 2065.4,
+      "variance": 342.6,
+      "variance_pct": 16.59,
+      "flag": "Favorable",
+      "unit": "$M"
+    }
+  ],
+  "driver_attribution": [
+    {
+      "driver": "RPO (backlog)",
+      "prior": 16000.0,
+      "current": 18400.0,
+      "change": 2400.0,
+      "change_pct": 15.0,
+      "inorganic_part": 1800.0,
+      "organic_part": 600.0
+    },
+    {
+      "driver": "NGS ARR",
+      "prior": 6300.0,
+      "current": 8100.0,
+      "change": 1800.0,
+      "change_pct": 28.6,
+      "inorganic_part": 1600.0,
+      "organic_part": 200.0
+    }
+  ]
+}

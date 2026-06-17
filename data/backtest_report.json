@@ -1,0 +1,144 @@
+{
+  "metrics": {
+    "model": {
+      "MAPE": 1.23,
+      "RMSE": 31.9,
+      "n": 7
+    },
+    "naive": {
+      "MAPE": 8.92,
+      "RMSE": 221.6,
+      "n": 7
+    },
+    "seasonal_naive": {
+      "MAPE": 1.0,
+      "RMSE": 29.4,
+      "n": 7
+    },
+    "guidance": {
+      "MAPE": 0.94,
+      "RMSE": 23.4,
+      "n": 7
+    }
+  },
+  "calibration": {
+    "nominal": 0.8,
+    "n": 7,
+    "mc_coverage": 0.429,
+    "mc_verdict": "overconfident (bands too narrow)",
+    "conformal_coverage": 0.857,
+    "conformal_verdict": "well-calibrated",
+    "conformal_radius": 49.2,
+    "residuals": [
+      -49.2,
+      -37.4,
+      23.4,
+      10.7,
+      31.5,
+      8.6,
+      39.7
+    ]
+  },
+  "beats_baseline": true,
+  "headline": "Model MAPE 1.23% beats the naive drift baseline (8.92%) by 86%. Tougher benchmarks: seasonal-naive 1.00%, management guidance 0.94% (over 7 walk-forward quarters). Model roughly matches these strong benchmarks \u2014 expected for a backlog-driven business; the added value is calibrated uncertainty + organic/inorganic decomposition.",
+  "steps": [
+    {
+      "predict_quarter": "FY2024Q4",
+      "actual": 2189.5,
+      "model": 2238.7,
+      "mc_low": 2215.2,
+      "mc_high": 2262.5,
+      "mc_in_band": false,
+      "naive": 1994.5,
+      "seasonal_naive": 2252.8,
+      "guidance": 2160.0,
+      "conf_low": 2199.0,
+      "conf_high": 2278.4,
+      "conf_in_band": false
+    },
+    {
+      "predict_quarter": "FY2025Q1",
+      "actual": 2138.8,
+      "model": 2176.2,
+      "mc_low": 2150.7,
+      "mc_high": 2202.0,
+      "mc_in_band": false,
+      "naive": 2415.3,
+      "seasonal_naive": 2105.2,
+      "guidance": 2115.0,
+      "conf_low": 2127.0,
+      "conf_high": 2225.4,
+      "conf_in_band": true
+    },
+    {
+      "predict_quarter": "FY2025Q2",
+      "actual": 2257.4,
+      "model": 2234.0,
+      "mc_low": 2208.2,
+      "mc_high": 2259.7,
+      "mc_in_band": true,
+      "naive": 2089.3,
+      "seasonal_naive": 2249.3,
+      "guidance": 2235.0,
+      "conf_low": 2184.8,
+      "conf_high": 2283.2,
+      "conf_in_band": true
+    },
+    {
+      "predict_quarter": "FY2025Q3",
+      "actual": 2289.0,
+      "model": 2278.3,
+      "mc_low": 2252.7,
+      "mc_high": 2304.3,
+      "mc_in_band": true,
+      "naive": 2382.6,
+      "seasonal_naive": 2268.5,
+      "guidance": 2275.0,
+      "conf_low": 2229.1,
+      "conf_high": 2327.5,
+      "conf_in_band": true
+    },
+    {
+      "predict_quarter": "FY2025Q4",
+      "actual": 2536.3,
+      "model": 2504.8,
+      "mc_low": 2479.9,
+      "mc_high": 2530.0,
+      "mc_in_band": false,
+      "naive": 2321.0,
+      "seasonal_naive": 2525.1,
+      "guidance": 2500.0,
+      "conf_low": 2455.6,
+      "conf_high": 2554.0,
+      "conf_in_band": true
+    },
+    {
+      "predict_quarter": "FY2026Q1",
+      "actual": 2474.0,
+      "model": 2465.4,
+      "mc_low": 2439.9,
+      "mc_high": 2491.1,
+      "mc_in_band": true,
+      "naive": 2810.3,
+      "seasonal_naive": 2477.6,
+      "guidance": 2460.0,
+      "conf_low": 2416.2,
+      "conf_high": 2514.6,
+      "conf_in_band": true
+    },
+    {
+      "predict_quarter": "FY2026Q2",
+      "actual": 2594.0,
+      "model": 2554.3,
+      "mc_low": 2528.9,
+      "mc_high": 2580.0,
+      "mc_in_band": false,
+      "naive": 2413.2,
+      "seasonal_naive": 2611.2,
+      "guidance": 2580.0,
+      "conf_low": 2505.1,
+      "conf_high": 2603.5,
+      "conf_in_band": true
+    }
+  ]
+}

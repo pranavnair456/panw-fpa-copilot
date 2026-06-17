@@ -1,0 +1,345 @@
+EX-99.12ex991q322earningsrelease.htmEX-99.1Document
+
+Exhibit 99.1
+
+Palo Alto Networks Reports Fiscal Third Quarter 2022 Financial Results
+
+•Fiscal third quarter revenue grew 29% year over year to $1.4 billion
+•Fiscal third quarter billings grew 40% year over year to $1.8 billion
+•Remaining performance obligation grew 40% year over year to $6.9 billion
+
+SANTA CLARA, Calif., May 19, 2022— Palo Alto Networks (NASDAQ: PANW), the global cybersecurity leader, announced today financial results for its fiscal third quarter 2022, ended April 30, 2022.
+
+Total revenue for the fiscal third quarter 2022 grew 29% year over year to $1.4 billion, compared with total revenue of $1.1 billion for the fiscal third quarter 2021. GAAP net loss for the fiscal third quarter 2022 was $73.2 million, or $0.74 per diluted share, compared with GAAP net loss of $145.1 million, or $1.50 per diluted share, for the fiscal third quarter 2021.
+
+Non-GAAP net income for the fiscal third quarter 2022 was $193.1 million, or $1.79 per diluted share, compared with non-GAAP net income of $139.5 million, or $1.38 per diluted share, for the fiscal third quarter 2021. A reconciliation between GAAP and non-GAAP information is contained in the tables below.
+
+“We saw strong top-line growth in Q3, which is a testament to our teams’ consistent execution in capitalizing on the strong cybersecurity demand trends,” said Nikesh Arora, chairman and CEO of Palo Alto Networks. “On the back of this strength across our portfolio, we are again raising our guidance for the year across revenue, billings and earnings per share.”
+
+“Our drive to deliver strong total shareholder return in Q3 was headlined by our revenue growth, while we also balanced operating margin expansion and free cash flow conversion,” said Dipak Golechha, chief financial officer of Palo Alto Networks. “We look forward to continuing this balance as we close out the year and look to FY23.”
+
+1
+
+Financial Outlook
+Palo Alto Networks provides guidance based on current market conditions and expectations.
+
+For the fiscal fourth quarter 2022, we expect:
+•Total billings in the range of $2.32 billion to $2.35 billion, representing year over year growth of between 24% and 26%.
+•Total revenue in the range of $1.53 billion to $1.55 billion, representing year over year growth of between 25% and 27%.
+•Diluted non-GAAP net income per share in the range of $2.26 to $2.29, using 106 million to 108 million shares outstanding.
+
+For the fiscal year 2022, we are broadly raising guidance and expect:
+•Total billings in the range of $7.106 billion to $7.136 billion, representing year over year growth of between 30% and 31%.
+•Total revenue in the range of $5.481 billion to $5.501 billion, representing year over year growth of approximately 29%.
+•Diluted non-GAAP net income per share in the range of $7.43 to $7.46, using 106 million to 107 million shares.
+•Adjusted free cash flow margin in the range of 32% to 33%.
+
+Guidance for non-GAAP financial measures excludes share-based compensation-related charges (including share-based payroll tax expense), acquisition-related costs, amortization expense of acquired intangible assets, litigation-related charges, including legal settlements, non-cash charges related to convertible notes, and related foreign currency gains (losses) and income and other tax effects associated with these items, along with certain non-recurring expenses and certain non-recurring cash flows. We have not reconciled diluted non-GAAP net income per share guidance to GAAP net income (loss) per diluted share or adjusted free cash flow margin guidance to GAAP net cash from operating activities because we do not provide guidance on GAAP net income (loss) or net cash from operating activities and would not be able to present the various reconciling cash and non-cash items between GAAP and non-GAAP financial measures because certain items that impact these measures are uncertain or out of our control, or cannot be reasonably predicted, including share-based compensation expense, without unreasonable effort. The actual amounts of such reconciling items will have a significant impact on the company's GAAP net income (loss) per diluted share and GAAP net cash from operating activities.
+
+2
+
+Earnings Call Information
+Palo Alto Networks will host a video webcast for analysts and investors to discuss the company’s fiscal third quarter 2022 results as well as the outlook for its fiscal fourth quarter 2022 today at 4:30 p.m. Eastern time/1:30 p.m. Pacific time. Open to the public, investors may access the webcast, supplemental financial information and earnings slides from the “Investors” section of the company’s website at investors.paloaltonetworks.com. A replay will be available three hours after the conclusion of the webcast and archived for one year.
+
+Forward-Looking Statements
+This press release contains forward-looking statements that involve risks, uncertainties, and assumptions including statements regarding our ability to balance future revenue growth with operating margin expansion and free cash flow, and our financial outlook for the fiscal fourth quarter 2022 and fiscal year 2022. There are a significant number of factors that could cause actual results to differ materially from statements made in this press release, including: developments and changes in general market, political, economic, and business conditions; the duration and global impact of COVID-19; risks associated with managing our growth; risks associated with new products and subscription and support offerings, including the discovery of software bugs; shifts in priorities or delays in the development or release of new subscription offerings, or the failure to timely develop and achieve market acceptance of new products and subscriptions as well as existing products and subscription and support offerings; rapidly evolving technological developments in the market for security products and subscription and support offerings; our customers’ purchasing decisions and the length of sales cycles; our competition; our ability to attract and retain new customers; our ability as an organization to acquire and integrate other companies, products, or technologies in a successful manner; the effects of supply chain constraints and the global chip and component shortages and other factors affecting the manufacture, delivery, and cost of certain of our products; our ability to obtain adequate supply of our products from our third-party manufacturing partners; our debt repayment obligations; and our share repurchase program, which may not be fully consummated or enhance shareholder value, and any share repurchases which could affect the price of our common stock.
+
+Additional risks and uncertainties that could affect our financial results are included under the captions "Risk Factors" and "Management's Discussion and Analysis of Financial Condition and Results of Operations" in our Quarterly Report on Form 10-Q filed with the SEC on February 22,
+
+3
+
+2022, which is available on our website at investors.paloaltonetworks.com and on the SEC's website at www.sec.gov. Additional information will also be set forth in other filings that we make with the SEC from time to time. All forward-looking statements in this press release are based on information available to us as of the date hereof, and we do not assume any obligation to update the forward-looking statements provided to reflect events that occur or circumstances that exist after the date on which they were made.
+
+Non-GAAP Financial Measures and Other Key Metrics
+Palo Alto Networks has provided in this press release financial information that has not been prepared in accordance with generally accepted accounting principles in the United States (GAAP). The company uses these non-GAAP financial measures and other key metrics internally in analyzing its financial results and believes that the use of these non-GAAP financial measures and key metrics are useful to investors as an additional tool to evaluate ongoing operating results and trends, and in comparing the company’s financial results with other companies in its industry, many of which present similar non-GAAP financial measures or key metrics.
+
+The presentation of these non-GAAP financial measures and key metrics are not meant to be considered in isolation or as a substitute for comparable GAAP financial measures and should be read only in conjunction with the company’s consolidated financial statements prepared in accordance with GAAP. A reconciliation of the company’s historical non-GAAP financial measures to their most directly comparable GAAP measures has been provided in the financial statement tables included in this press release, and investors are encouraged to review these reconciliations.
+
+Non-GAAP net income and net income per share, diluted.Palo Alto Networks defines non-GAAP net income as net income (loss) plus share-based compensation-related charges, including share-based payroll tax expense, acquisition-related costs, amortization expense of acquired intangible assets, litigation-related charges, including legal settlements, gains (losses) related to facility exit, and non-cash charges related to convertible notes. The company also excludes from non-GAAP net income the foreign currency gains (losses) and tax effects associated with these items in order to provide a complete picture of the company’s recurring core business operating results. The company defines non-GAAP net income per share, diluted, as non-GAAP net income divided by the weighted-average diluted shares outstanding, which includes the potentially dilutive effect of the company’s employee equity incentive plan awards and the company’s convertible senior notes outstanding and related warrants, after giving effect to the anti-dilutive impact of the company’s
+
+4
+
+note hedge agreements, which reduces the potential economic dilution that otherwise would occur upon conversion of the company’s convertible senior notes. Under GAAP, the anti-dilutive impact of the note hedge is not reflected in diluted shares outstanding. The company believes that excluding these items from non-GAAP net income and net income per share, diluted, provides management and investors with greater visibility into the underlying performance of the company’s core business operating results, meaning its operating performance excluding these items and, from time to time, other discrete charges that are infrequent in nature, over multiple periods.
+
+Billings.Palo Alto Networks defines billings as total revenue plus the change in total deferred revenue, net of acquired deferred revenue, during the period. The company considers billings to be a key metric used by management to manage the company’s business and believes billings provides investors with an important indicator of the health and visibility of the company’s business because it includes subscription and support revenue, which is recognized ratably over the contractual service period, and product revenue, which is recognized at the time of shipment, provided that all other conditions for revenue recognition have been met. The company considers billings to be a useful metric for management and investors, particularly if sales of subscriptions continue to increase and the company experiences strong renewal rates for subscriptions and support.
+
+Investors are cautioned that there are a number of limitations associated with the use of non-GAAP financial measures and key metrics as analytical tools. In particular, the billings metric reported by the company includes amounts that have not yet been recognized as revenue. Additionally, many of the adjustments to the company’s GAAP financial measures reflect the exclusion of items that are recurring and will be reflected in the company’s financial results for the foreseeable future, such as share-based compensation, which is an important part of Palo Alto Networks employees’ compensation and impacts their performance. Furthermore, these non-GAAP financial measures are not based on any standardized methodology prescribed by GAAP, and the components that Palo Alto Networks excludes in its calculation of non-GAAP financial measures may differ from the components that its peer companies exclude when they report their non-GAAP results of operations. Palo Alto Networks compensates for these limitations by providing specific information regarding the GAAP amounts excluded from these non-GAAP financial measures. In the future, the company may also exclude non-recurring expenses and other expenses that do not reflect the company’s core business operating results.
+
+5
+
+About Palo Alto Networks
+Palo Alto Networks, the global cybersecurity leader, is shaping the cloud-centric future with technology that is transforming the way people and organizations operate. Our mission is to be the cybersecurity partner of choice, protecting our digital way of life. We help address the world’s greatest security challenges with continuous innovation that seizes the latest breakthroughs in artificial intelligence, analytics, automation, and orchestration. By delivering an integrated platform and empowering a growing ecosystem of partners, we are at the forefront of protecting tens of thousands of organizations across clouds, networks, and mobile devices. Our vision is a world where each day is safer and more secure than the one before. For more information, visit www.paloaltonetworks.com.
+
+Palo Alto Networks and the Palo Alto Networks logo are trademarks of Palo Alto Networks, Inc. in the United States and in jurisdictions throughout the world. All other trademarks, trade names, or service marks used or mentioned herein belong to their respective owners.
+
+Media Contact:
+Andria Leaf
+Director of Corporate Communications, Palo Alto Networks
+press@paloaltonetworks.com
+
+Investor Relations Contact:
+Clay Bilby
+Head of Investor Relations, Palo Alto Networks
+ir@paloaltonetworks.com
+
+6
+
+| | | | | | | | | | | | | | | | | | | | | | | 
+
+Palo Alto Networks, Inc.
+
+Preliminary Condensed Consolidated Statements of Operations
+
+(In millions, except per share data)
+
+(Unaudited)
+
+| | | | | | | 
+
+| Three Months Ended | | Nine Months Ended
+
+| April 30, | | April 30,
+
+| 2022 | | 2021 | | 2022 | | 2021
+
+Revenue: | | | | | | | 
+
+Product | $ | 351.5 | | | $ | 288.9 | | | $ | 955.0 | | | $ | 780.9 | 
+
+Subscription and support | 1,035.2 | | | 785.0 | | | 2,996.0 | | | 2,255.9 | 
+
+Total revenue | 1,386.7 | | | 1,073.9 | | | 3,951.0 | | | 3,036.8 | 
+
+Cost of revenue: | | | | | | | 
+
+Product | 126.0 | | | 81.9 | | | 312.7 | | | 219.7 | 
+
+Subscription and support | 314.5 | | | 248.7 | | | 913.7 | | | 696.3 | 
+
+Total cost of revenue | 440.5 | | | 330.6 | | | 1,226.4 | | | 916.0 | 
+
+Total gross profit | 946.2 | | | 743.3 | | | 2,724.6 | | | 2,120.8 | 
+
+Operating expenses: | | | | | | | 
+
+Research and development | 355.4 | | | 311.0 | | | 1,053.9 | | | 815.1 | 
+
+Sales and marketing | 543.6 | | | 448.0 | | | 1,578.3 | | | 1,264.0 | 
+
+General and administrative | 94.8 | | | 94.7 | | | 296.6 | | | 285.4 | 
+
+Total operating expenses | 993.8 | | | 853.7 | | | 2,928.8 | | | 2,364.5 | 
+
+Operating loss | (47.6) | | | (110.4) | | | (204.2) | | | (243.7) | 
+
+Interest expense | (6.8) | | | (41.0) | | | (20.5) | | | (121.9) | 
+
+Other income, net | 1.9 | | | 1.0 | | | 0.2 | | | 2.9 | 
+
+Loss before income taxes | (52.5) | | | (150.4) | | | (224.5) | | | (362.7) | 
+
+Provision for (benefit from) income taxes | 20.7 | | | (5.3) | | | 45.8 | | | 16.9 | 
+
+Net loss | $ | (73.2) | | | $ | (145.1) | | | $ | (270.3) | | | $ | (379.6) | 
+
+Net loss per share, basic and diluted | $ | (0.74) | | | $ | (1.50) | | | $ | (2.75) | | | $ | (3.95) | 
+
+Weighted-average shares used to compute net loss per share, basic and diluted | 98.9 | | | 96.9 | | | 98.2 | | | 96.1 | 
+
+7
+
+| | | | | | | | | | | | | | | | | | | | | | | 
+
+Palo Alto Networks, Inc.
+
+Reconciliation of GAAP to Non-GAAP Financial Measures
+
+(In millions, except per share amounts)
+
+(Unaudited)
+
+| | | | | | | 
+
+| Three Months Ended | | Nine Months Ended
+
+| April 30, | | April 30,
+
+| 2022 | | 2021 | | 2022 | | 2021
+
+GAAP net loss | $ | (73.2) | | | $ | (145.1) | | | $ | (270.3) | | | $ | (379.6) | 
+
+Share-based compensation-related charges | 267.2 | | | 247.2 | | | 820.7 | | | 697.3 | 
+
+
+Acquisition-related costs(1) | — | | | 11.7 | | | 3.1 | | | 45.4 | 
+
+Amortization expense of acquired intangible assets | 31.5 | | | 32.0 | | | 94.6 | | | 85.1 | 
+
+
+Litigation-related charges(2) | 1.8 | | | 1.8 | | | 5.4 | | | 5.4 | 
+
+| | | | | | | 
+
+
+Non-cash charges related to convertible notes(3) | 1.8 | | | 35.9 | | | 5.4 | | | 106.5 | 
+
+Foreign currency (gain) loss associated with non-GAAP adjustments | (2.3) | | | 0.6 | | | (1.7) | | | 2.2 | 
+
+Income tax and other tax adjustments related to the above | (33.7) | | | (44.6) | | | (108.8) | | | (110.5) | 
+
+Non-GAAP net income | $ | 193.1 | | | $ | 139.5 | | | $ | 548.4 | | | $ | 451.8 | 
+
+| | | | | | | 
+
+GAAP net loss per share, diluted | $ | (0.74) | | | $ | (1.50) | | | $ | (2.75) | | | $ | (3.95) | 
+
+Share-based compensation-related charges | 2.53 | | | 2.49 | | | 7.96 | | | 7.10 | 
+
+
+Acquisition-related costs(1) | 0.00 | | | 0.12 | | | 0.03 | | | 0.47 | 
+
+Amortization expense of acquired intangible assets | 0.32 | | | 0.33 | | | 0.96 | | | 0.89 | 
+
+
+Litigation-related charges(2) | 0.02 | | | 0.02 | | | 0.05 | | | 0.06 | 
+
+| | | | | | | 
+
+
+Non-cash charges related to convertible notes(3) | 0.02 | | | 0.37 | | | 0.05 | | | 1.11 | 
+
+Foreign currency (gain) loss associated with non-GAAP adjustments | (0.02) | | | 0.01 | | | (0.02) | | | 0.02 | 
+
+Income tax and other tax adjustments related to the above | (0.34) | | | (0.46) | | | (1.11) | | | (1.15) | 
+
+Non-GAAP net income per share, diluted | $ | 1.79 | | | $ | 1.38 | | | $ | 5.17 | | | $ | 4.55 | 
+
+| | | | | | | 
+
+GAAP weighted-average shares used to compute net loss per share, diluted | 98.9 | | | 96.9 | | | 98.2 | | | 96.1 | 
+
+
+Weighted-average effect of potentially dilutive securities(4) | 8.9 | | | 4.1 | | | 7.8 | | | 3.3 | 
+
+Non-GAAP weighted-average shares used to compute net income per share, diluted | 107.8 | | | 101.0 | | | 106.0 | | | 99.4 | 
+
+(1)    Consists of acquisition transaction costs, share-based compensation related to the cash settlement of certain equity awards, and costs to terminate certain employment, operating lease, and other contracts of the acquired companies.
+(2)Consists of the amortization of intellectual property licenses and covenant not to sue.
+(3)Consists primarily of non-cash interest expense for amortization of debt discount and issuance costs related to the company's convertible senior notes. Effective Q1'22, the company no longer recognizes interest expense for amortization of debt discount as a result of the adoption of new debt guidance.
+(4)    Non-GAAP net income per share, diluted, includes the potentially dilutive effect of employee equity incentive plan awards and convertible senior notes outstanding and related warrants. In addition, non-GAAP net income per share, diluted includes the anti-dilutive impact of the company’s note hedge agreements, which reduced the potentially dilutive effect of the convertible notes by 6.6 million and 5.9 million for the three and nine months ended April 30, 2022, respectively, and 2.3 million and 1.7 million for the three and nine months ended April 30, 2021, respectively.
+
+8
+
+| | | | | | | | | | | | | | | | | | | | | | | 
+
+Palo Alto Networks, Inc.
+
+Calculation of Billings
+
+(In millions)
+
+(Unaudited)
+
+| | | | | | | 
+
+| Three Months Ended | | Nine Months Ended
+
+| April 30, | | April 30,
+
+| 2022 | | 2021 | | 2022 | | 2021
+
+Total revenue | $ | 1,386.7 | | | $ | 1,073.9 | | | $ | 3,951.0 | | | $ | 3,036.8 | 
+
+Add: change in total deferred revenue, net of acquired deferred revenue | 410.2 | | | 212.5 | | | 835.4 | | | 547.1 | 
+
+Billings | $ | 1,796.9 | | | $ | 1,286.4 | | | $ | 4,786.4 | | | $ | 3,583.9 | 
+
+9
+
+| | | | | | | | | | | 
+
+Palo Alto Networks, Inc.
+
+Preliminary Condensed Consolidated Balance Sheets
+
+(In millions)
+
+
+
+| April 30, 2022 | | July 31, 2021
+
+| (unaudited) | | 
+
+Assets | | | 
+
+Current assets: | | | 
+
+Cash and cash equivalents | $ | 2,419.9 | | | $ | 1,874.2 | 
+
+Short-term investments | 1,454.7 | | | 1,026.9 | 
+
+Accounts receivable, net | 1,240.6 | | | 1,240.4 | 
+
+Short-term deferred contract costs | 286.8 | | | 276.5 | 
+
+Prepaid expenses and other current assets | 295.6 | | | 229.3 | 
+
+Total current assets | 5,697.6 | | | 4,647.3 | 
+
+Property and equipment, net | 355.6 | | | 318.4 | 
+
+Operating lease right-of-use assets | 239.9 | | | 262.9 | 
+
+Long-term investments | 714.7 | | | 888.3 | 
+
+Long-term deferred contract costs | 480.3 | | | 494.6 | 
+
+Goodwill | 2,731.3 | | | 2,710.1 | 
+
+Intangible assets, net | 412.1 | | | 498.6 | 
+
+Other assets | 468.5 | | | 421.4 | 
+
+Total assets | $ | 11,100.0 | | | $ | 10,241.6 | 
+
+Liabilities, temporary equity and stockholders’ equity | | | 
+
+Current liabilities: | | | 
+
+Accounts payable | $ | 108.0 | | | $ | 56.9 | 
+
+Accrued compensation | 365.2 | | | 430.6 | 
+
+Accrued and other liabilities | 375.4 | | | 329.4 | 
+
+Deferred revenue | 3,152.9 | | | 2,741.9 | 
+
+Convertible senior notes, net | 3,675.7 | | | 1,557.9 | 
+
+Total current liabilities | 7,677.2 | | | 5,116.7 | 
+
+Convertible senior notes, net | — | | | 1,668.1 | 
+
+Long-term deferred revenue | 2,706.5 | | | 2,282.1 | 
+
+Long-term operating lease liabilities | 275.7 | | | 313.4 | 
+
+Other long-term liabilities | 103.0 | | | 97.7 | 
+
+Temporary equity | — | | | 129.1 | 
+
+Stockholders’ equity: | | | 
+
+Preferred stock | — | | | — | 
+
+Common stock and additional paid-in capital | 2,066.3 | | | 2,311.2 | 
+
+Accumulated other comprehensive loss | (58.3) | | | (9.9) | 
+
+Accumulated deficit | (1,670.4) | | | (1,666.8) | 
+
+Total stockholders’ equity | 337.6 | | | 634.5 | 
+
+Total liabilities, temporary equity and stockholders’ equity | $ | 11,100.0 | | | $ | 10,241.6 | 
+
+10
