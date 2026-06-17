@@ -191,6 +191,124 @@ def test_variance_no_leakage():
     assert res.training_cutoff == "FY2026Q2"  # last quarter strictly before
 
 
+# ------------------------------------------- Stage 3.5: anomaly detection
+def test_anomaly_reconciliation_catches_mismatch(df):
+    """Clean data trips no reconciliation flag; a broken segment sum does."""
+    from src import anomaly
+    # real data reconciles -> no reconciliation-detector anomalies
+    rep = anomaly.build_report("FY2026Q3", df=df, run_bt=False)
+    assert not [a for a in rep.anomalies if a.detector == "reconciliation"]
+    # corrupt one quarter's product revenue so segments no longer sum to total
+    bad = df.copy()
+    j = bad.index[bad["fiscal_quarter"] == "FY2025Q2"][0]
+    bad.loc[j, "revenue_product"] = bad.loc[j, "revenue_product"] + 50.0
+    rep2 = anomaly.build_report("FY2026Q3", df=bad, run_bt=False)
+    recon = [a for a in rep2.anomalies if a.detector == "reconciliation"]
+    assert any(a.metric == "segment_reconciliation" and a.quarter == "FY2025Q2"
+               for a in recon)
+
+
+def test_anomaly_flags_inorganic_quarter_explained(df):
+    """The acquisition quarter is a large forecast-band break — but EXPLAINED."""
+    from src import anomaly
+    rep = anomaly.build_report("FY2026Q3", df=df, run_bt=False)
+    hit = [a for a in rep.anomalies
+           if a.detector == "forecast_band" and a.metric == "revenue_total"
+           and a.quarter == "FY2026Q3"]
+    assert hit, "expected a forecast-band flag on FY2026Q3 total revenue"
+    a = hit[0]
+    assert a.status == "explained"
+    assert a.severity == "critical"
+    assert a.explanation and "CyberArk" in a.explanation
+    assert "388" in a.why          # the disclosed inorganic figure is cited
+
+
+def test_anomaly_no_leakage(df):
+    """The forecast-relative scan trains only on quarters before the focus quarter."""
+    from src.variance import forecast_for
+    res = forecast_for(df, "FY2026Q3")
+    assert res.training_cutoff == "FY2026Q2"   # strictly before the focus quarter
+
+
+def test_anomaly_deterministic(df):
+    """Same input -> identical anomaly list (auditable)."""
+    from src import anomaly
+    a = anomaly.build_report("FY2026Q3", df=df, run_bt=False).to_records()
+    b = anomaly.build_report("FY2026Q3", df=df, run_bt=False).to_records()
+    assert a == b
+
+
+def test_anomaly_robust_z():
+    """The MAD-based z flags an obvious outlier in a synthetic series."""
+    from src.anomaly import _robust_z
+    x = np.array([10.0, 11.0, 9.0, 10.5, 9.5, 10.0, 50.0])  # last point is the outlier
+    z = _robust_z(x)
+    assert abs(z[-1]) > 5            # the outlier is many robust-sigmas out
+    assert np.all(np.abs(z[:-1]) < 3)  # the rest sit inside a normal band
+
+
+def test_anomaly_report_schema_and_serializes(df):
+    """Every record is well-formed and the report round-trips through JSON."""
+    import json
+    from src import anomaly
+    rep = anomaly.build_report("FY2026Q3", df=df, run_bt=False)
+    for a in rep.anomalies:
+        assert a.severity in ("info", "warning", "critical")
+        assert a.status in ("explained", "unexplained")
+        assert a.detector in ("reconciliation", "trend_band", "forecast_band")
+        assert a.unit in ("$M", "%")
+    # unexplained items must sort ahead of explained ones
+    statuses = [a.status for a in rep.anomalies]
+    if "explained" in statuses and "unexplained" in statuses:
+        assert statuses.index("unexplained") < statuses.index("explained")
+    json.dumps(rep.to_records(), default=float)   # must not raise
+
+
+def test_anomaly_facts_verify(df):
+    """A flagged anomaly's WHY narrative passes the no-hallucination verifier —
+    its figures were folded into the source of truth."""
+    from src import anomaly, verify
+    facts = verify.build_source_of_truth("FY2026Q3")
+    rep = anomaly.build_report("FY2026Q3", df=df, run_bt=False)
+    explained = [a for a in rep.anomalies if a.status == "explained"]
+    assert explained, "expected at least one explained anomaly to narrate"
+    assert verify.verify_text(explained[0].why, facts) == []
+
+
+# ------------------------------- FP&A-user framing (P2) + chat centerpiece (P3)
+def test_framing_every_output_has_user_lens():
+    """Every dashboard output is justified by a user need (who/decision/why)."""
+    from src import framing
+    expected = {"forecast", "backtest", "variance", "anomaly", "signals",
+                "summary", "chat"}
+    assert expected.issubset(framing.LENS)
+    for key, e in framing.LENS.items():
+        for fld in ("who", "decision", "why"):
+            assert e.get(fld) and len(e[fld]) > 10, (key, fld)
+    assert "Who this is for" in framing.caption("anomaly")
+    assert framing.TAGLINE
+
+
+def test_offline_chat_anomaly_answer(force_offline):
+    """The centerpiece question 'is anything anomalous?' is answered, sourced,
+    and verified — and surfaces the explained CyberArk anomaly."""
+    from src.chat import ask
+    a = ask("Is anything anomalous this quarter?")
+    assert a.verified, [v.raw for v in a.violations]
+    assert "anomaly scan" in a.text
+    assert "explained" in a.text.lower() and "CyberArk" in a.text
+
+
+def test_offline_chat_intents_verify(force_offline):
+    """Every offline intent answers from computed data and passes the verifier."""
+    from src.chat import ask
+    for q in ["what drove the beat?", "is anything anomalous?", "forecast next quarter",
+              "RPO backlog", "operating margin", "product vs subscription",
+              "management tone", "tell me about revenue"]:
+        a = ask(q)
+        assert a.verified, (q, [v.raw for v in a.violations])
+
+
 # ----------------------------------------------- V3: verification harness / LLM
 def test_verify_passes_clean_numbers():
     from src import verify

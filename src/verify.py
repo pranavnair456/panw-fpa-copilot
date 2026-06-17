@@ -49,6 +49,35 @@ def _add(s: set, *vals):
             s.add(round(float(v), 1))
 
 
+def _add_variance_facts(money: set, pct: set, quarter: str, df) -> None:
+    """Fold the variance decomposition figures for `quarter` into the source of
+    truth so the chat agent (which works off the dataset-wide set) can narrate the
+    variance read — guidance midpoint, the beat, the inorganic share — verifiably."""
+    from src.variance import build_report
+    s = build_report(quarter, df=df).summary
+    _add(money, s["actual_total"], s["actual_organic"], s["inorganic"],
+         s["forecast_organic"], s["guidance_midpoint"], s["vs_guidance_$"],
+         s["organic_beat_$"])
+    _add(pct, s["vs_guidance_%"])
+    if s.get("inorganic_share_of_beat_%") is not None:
+        _add(pct, s["inorganic_share_of_beat_%"])
+
+
+def _add_anomaly_facts(money: set, pct: set, quarter: str, df) -> None:
+    """Fold the discrepancy/anomaly figures into the source of truth so the chat
+    agent and brief can NARRATE flagged anomalies and still pass verification.
+    Skips the backtest (run_bt=False) — narrated anomalies are about the focus
+    quarter, whose forecast-relative check needs no walk-forward run."""
+    from src.anomaly import build_report as anomaly_report
+    rep = anomaly_report(quarter, df=df, run_bt=False)
+    for a in rep.anomalies:
+        if a.unit == "$M":
+            _add(money, a.observed, a.expected, a.observed - a.expected)
+        else:
+            _add(pct, a.observed, a.expected)
+        _add(pct, a.deviation_pct)
+
+
 def build_source_of_truth(quarter: str = "FY2026Q3") -> dict:
     """Assemble the allowed money ($M) and percentage values for `quarter`."""
     from src.forecast import load
@@ -95,6 +124,8 @@ def build_source_of_truth(quarter: str = "FY2026Q3") -> dict:
                       conformal_errors=load_conformal_errors())
     _add(money, *fc.total_point.tolist(), *fc.total_low.tolist(), *fc.total_high.tolist())
     _add(pct, config.PREDICTION_INTERVAL * 100)  # the 80% band
+    # Stage 3.5 anomaly figures (so a narrated anomaly stays verifiable)
+    _add_anomaly_facts(money, pct, quarter, df)
 
     return {"money": money, "pct": pct, "quarter": quarter}
 
@@ -122,6 +153,12 @@ def build_dataset_facts() -> dict:
     fc = run_forecast(df=df, conformal_errors=load_conformal_errors())
     _add(money, *fc.total_point.tolist(), *fc.total_low.tolist(), *fc.total_high.tolist())
     _add(pct, config.PREDICTION_INTERVAL * 100)
+    # Variance + anomaly figures for the focus quarter, so the chat agent can
+    # narrate "what drove the beat?" and "is anything anomalous?" verifiably.
+    focus = (df[df["inorganic_revenue"] > 0]["fiscal_quarter"].iloc[-1]
+             if (df["inorganic_revenue"] > 0).any() else df["fiscal_quarter"].iloc[-1])
+    _add_variance_facts(money, pct, focus, df)
+    _add_anomaly_facts(money, pct, focus, df)
     return {"money": money, "pct": pct, "quarter": "ALL"}
 
 

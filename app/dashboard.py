@@ -23,9 +23,11 @@ except Exception:
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src import config
+from src import framing
 from src.forecast import run_forecast, load_conformal_errors
 from src.backtest import run_backtest
 from src.variance import build_report
+from src.anomaly import build_report as build_anomalies
 from src.signals import build as build_signals
 from src.summary import generate_brief
 from src.chat import ask as chat_ask
@@ -46,14 +48,25 @@ def get_data():
 
 
 @st.cache_data
+def get_backtest_report():
+    return run_backtest()
+
+
+@st.cache_data
 def get_backtest():
-    rep = run_backtest()
+    rep = get_backtest_report()
     return rep.steps, rep.metrics, rep.calibration, rep.headline
 
 
 @st.cache_data
 def get_variance(quarter):
     return build_report(quarter)
+
+
+@st.cache_data
+def get_anomalies(quarter):
+    # Reuse the cached walk-forward run rather than recomputing it.
+    return build_anomalies(quarter, backtest=get_backtest_report())
 
 
 @st.cache_data(show_spinner="Extracting transcript signals…")
@@ -71,13 +84,23 @@ errors = load_conformal_errors()
 
 st.title("📊 PANW AI FP&A Copilot")
 st.caption("Driver-based, backtested, probabilistic revenue forecasting on Palo Alto "
-           "Networks public financials — forecast → validate → (variance → signals → "
-           "executive summary). Every figure traces to an SEC filing; the LLM never "
-           "invents numbers.")
+           "Networks public financials — forecast → validate → (variance → anomaly → "
+           "signals → executive summary). Every figure traces to an SEC filing; the LLM "
+           "never invents numbers.")
 
-tab_fc, tab_bt, tab_var, tab_sig, tab_sum, tab_chat = st.tabs(
+with st.container(border=True):
+    st.markdown("#### 👤 Who this is for / what it answers")
+    st.markdown(framing.TAGLINE)
+
+
+def lens(key):
+    """Render the user-need framing (who · decision · why) for a tab."""
+    st.info(framing.caption(key))
+
+
+tab_fc, tab_bt, tab_var, tab_anom, tab_sig, tab_sum, tab_chat = st.tabs(
     ["🔮 Forecast", "✅ Backtest & Validation", "📐 Variance & Attribution",
-     "🗣️ Signals", "📝 Exec Summary", "💬 Chat"])
+     "🚨 Anomalies", "🗣️ Signals", "📝 Exec Summary", "💬 Chat"])
 
 _llm_badge = ("🟢 Claude (live)" if llm.available
               else "⚪ offline mode — set ANTHROPIC_API_KEY for live Claude")
@@ -86,6 +109,7 @@ st.caption(f"LLM layer: {_llm_badge}")
 # ---------------------------------------------------------------- Forecast tab
 with tab_fc:
     st.subheader("Probabilistic organic-revenue forecast")
+    lens("forecast")
     c1, c2, c3 = st.columns(3)
     horizon = c1.slider("Forecast horizon (quarters)", 1, 4, config.FORECAST_HORIZON)
     method = c3.radio("Interval method", ["conformal", "mc"],
@@ -148,6 +172,7 @@ with tab_fc:
 with tab_bt:
     steps, metrics, calib, headline = get_backtest()
     st.subheader("Walk-forward validation (no leakage)")
+    lens("backtest")
     st.success(headline)
 
     m1, m2, m3, m4 = st.columns(4)
@@ -191,6 +216,7 @@ with tab_bt:
 # --------------------------------------------------------------- Variance tab
 with tab_var:
     st.subheader("Automated variance analysis & attribution")
+    lens("variance")
     quarters = df[df["inorganic_revenue"] > 0]["fiscal_quarter"].tolist() + \
         df["fiscal_quarter"].tolist()[-6:]
     quarters = list(dict.fromkeys(quarters))  # de-dupe, keep order
@@ -240,9 +266,62 @@ with tab_var:
     for n in rep.notes:
         st.markdown(f"- {md(n)}")
 
+# -------------------------------------------------------------- Anomalies tab
+with tab_anom:
+    st.subheader("Discrepancy & anomaly detection (Stage 3.5)")
+    lens("anomaly")
+    st.caption("Interpretable, rule-based flags reusing the data + forecast outputs — "
+               "accounting tie-outs, trend/seasonality band breaks (robust z), and "
+               "actuals outside the calibrated forecast band. Each flag is cross-checked "
+               "against known disclosures and labeled **expected (explained)** vs "
+               "**unexplained (investigate)** — the judgment a human analyst adds.")
+    aq = st.selectbox("Focus quarter (forecast-relative check)",
+                      df[df["inorganic_revenue"] > 0]["fiscal_quarter"].tolist()
+                      + df["fiscal_quarter"].tolist()[-6:], key="anom_q")
+    aq = list(dict.fromkeys([aq]))[0]
+    arep = get_anomalies(aq)
+    items = arep.anomalies
+    unexpl = [a for a in items if a.status == "unexplained"]
+    expl = [a for a in items if a.status == "explained"]
+    crit = [a for a in unexpl if a.severity == "critical"]
+
+    a1, a2, a3 = st.columns(3)
+    a1.metric("Flags", len(items))
+    a2.metric("Unexplained (investigate)", len(unexpl),
+              delta=f"{len(crit)} critical" if crit else "none critical",
+              delta_color="inverse" if crit else "off")
+    a3.metric("Expected (explained)", len(expl), delta_color="off")
+
+    _emoji = {"critical": "🔴", "warning": "🟠", "info": "🔵"}
+
+    def _render(anom_list, header, empty_msg):
+        st.markdown(f"##### {header}")
+        if not anom_list:
+            st.caption(empty_msg)
+            return
+        for a in anom_list:
+            label = (f"{_emoji[a.severity]} **{a.quarter} · {a.metric}** "
+                     f"({a.detector}, {a.severity})")
+            with st.expander(label, expanded=(a.severity == "critical")):
+                st.markdown(md(a.why))
+                if a.explanation:
+                    st.success(md(f"Expected — {a.explanation}"))
+                else:
+                    st.warning("Unexplained — worth a human look.")
+
+    _render(unexpl, "🔴 Unexplained — investigate",
+            "Nothing unexplained — every flagged item is accounted for.")
+    _render(expl, "🟢 Expected — explained by disclosure",
+            "No disclosure-explained anomalies this scan.")
+
+    st.markdown("##### All flags")
+    st.dataframe(arep.to_frame(), width="stretch", hide_index=True)
+    st.caption(" · ".join(md(n) for n in arep.notes))
+
 # ---------------------------------------------------------------- Signals tab
 with tab_sig:
     st.subheader("Transcript signal layer (Stage 4)")
+    lens("signals")
     sig = get_signals()
     src = sig["source"].iloc[0] if not sig.empty else "n/a"
     st.caption(f"Signal source: **{src}** · sentiment / guidance tone / topic emphasis "
@@ -268,6 +347,7 @@ with tab_sig:
 # ------------------------------------------------------------ Exec Summary tab
 with tab_sum:
     st.subheader("LLM executive summary (Stage 5)")
+    lens("summary")
     q = st.selectbox("Quarter", df[df["inorganic_revenue"] > 0]["fiscal_quarter"].tolist()
                      + df["fiscal_quarter"].tolist()[-4:], key="sum_q")
     q = list(dict.fromkeys([q]))[0]
@@ -286,9 +366,13 @@ with tab_sum:
 # -------------------------------------------------------------------- Chat tab
 with tab_chat:
     st.subheader("Chat with your financials")
-    st.caption("Answers come ONLY from the computed pipeline; every figure is routed "
-               "through the number-verification harness.")
+    lens("chat")
+    st.caption("Ask in plain English. Answers come ONLY from the computed pipeline — "
+               "financials, forecast, variance, and the anomaly scan — every figure "
+               "quarter-cited, source-tagged, and routed through the number-verification "
+               "harness. Try the examples, or ask your own.")
     examples = ["What drove the FY2026Q3 revenue beat?",
+                "Is anything anomalous this quarter?",
                 "What's the revenue forecast for next quarter?",
                 "How big was the CyberArk contribution?"]
     cols = st.columns(len(examples))
@@ -298,6 +382,6 @@ with tab_chat:
     if question:
         ans = chat_ask(question)
         (st.success if ans.verified else st.warning)(
-            f"{'✅ verified' if ans.verified else '⚠️ contains unverifiable figures'} "
+            f"{'✅ verified against computed data' if ans.verified else '⚠️ contains unverifiable figures'} "
             f"· source: {ans.source}")
         st.markdown(md(ans.text))

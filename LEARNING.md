@@ -123,6 +123,39 @@ A forecast tells you what you *expected*; **variance analysis** explains why rea
 
 ---
 
+## Stage 3.5 — Discrepancy & Anomaly Detection
+
+### Fundamental (the intuition)
+This is the **third thing the CFO-org AI team builds** (alongside forecasting and variance), and the POC was missing it. Think of it as a **smoke detector for the numbers**: it scans every metric and every forecast and raises a hand whenever something looks *off*. But a smoke detector that shrieks at toast is useless — so this one does the extra thing a good analyst does: it checks each alarm against what we already know and tells you whether there's a *known reason* (a candle) or *not* (a fire). A revenue jump the company already disclosed as an acquisition is **expected — explained**; a jump with no known cause is **unexplained — investigate**. That distinction is the whole point: the tool doesn't just flag, it adds judgment.
+
+### Technical (the how)
+Everything here is deliberately **interpretable** — three transparent detectors, no black box, because every flag has to be defensible to a CFO who asks "why did you flag that?"
+- **Reconciliation / discrepancy checks** (`_detect_reconciliation`). Pure accounting identities: does `revenue_product + revenue_subscription` tie to `revenue_total`? does `organic + inorganic` tie to total? does our press-release figure match the independent **SEC XBRL** number? On the real data nothing fires (it already reconciles) — the detector exists to *catch a future mis-keyed number*, the everyday "tie-out" before anyone trusts a figure. (Tested by deliberately corrupting a segment value and confirming it's caught.)
+- **Trend / seasonality band breaks** (`_detect_trend_band`). For each metric we compute a **robust z-score**: `z = (value − median) / (1.4826 · MAD)`, where **MAD** is the *median absolute deviation*. Why MAD instead of the ordinary standard deviation? On ~20 points, one big outlier inflates the std so much it *hides itself* (the alarm desensitizes to the very thing it's looking for); the median/MAD pair barely moves, so the outlier still stands out. We score each metric's **year-over-year growth** (not quarter-over-quarter) so PANW's huge fiscal-Q4 seasonal spike doesn't get flagged every single year — YoY compares like-with-like. Metrics with too few comparable points (NGS ARR: 4; margin: 7) are **honestly skipped**, not forced.
+- **Forecast-band anomalies** (`_detect_forecast_band`). The "abnormally large variance vs forecast" case — and it reuses the work already done. An actual is anomalous if it lands **outside the calibrated conformal band** (the same 86%-coverage band from Stage 2). Because that band is calibrated to *demonstrated* error, "outside the band" is a statement you can trust, not the model's own optimistic variance. It draws on the leakage-free walk-forward steps for historical surprises, and on `forecast_for(df, q)` (trained strictly on prior quarters) for the focus quarter — so **no leakage** here either.
+- **The explained/unexplained classifier.** After detection, a flag is labeled `explained` when a disclosure accounts for most of it — the FY2026Q3 total-revenue break is explained because **$388M of the $438M gap is the disclosed CyberArk + Chronosphere acquisition**, structural rather than a forecasting error. Severity (magnitude) and status (do we know why) are kept **orthogonal**: the dashboard sorts *unexplained* items to the top so a human looks at those first, while explained-but-large items are shown and de-emphasized.
+- **Guardrails.** Output is structured data (`anomaly_report.json`); the WHY strings are deterministic templates, and their figures are folded into the verifier's source-of-truth (`verify._add_anomaly_facts`) so that when the chat agent or brief *narrates* an anomaly, the no-hallucination gate still holds. Deterministic (same input → identical list), so it's auditable.
+
+### Financial (the meaning)
+- A **discrepancy** is a data-integrity break (the segments don't tie out) — in FP&A this is caught at the *close*, before any analysis, because every downstream number inherits the error. An **anomaly** is a *result* that's surprising given history or plan — the trigger for the "why did this move?" investigation that variance analysis then answers.
+- Why the **explained vs unexplained** split is the real value: a CFO doesn't want 50 alarms, they want the *one* that has no known cause. Auto-labeling the CyberArk-driven spike as "expected" and surfacing only the genuinely unexplained items is exactly the analyst judgment that makes the tool trustworthy instead of noisy — and it's the **bridge** competency: knowing what the FP&A user actually needs (signal, not noise).
+- It also reinforces the project's honesty theme: the system flags its *own* forecast misses (e.g. the FY2024Q4 organic surprise, the FY2026Q3 boundary miss) rather than hiding them.
+
+### What this stage does NOT do (limits)
+- On ~20 points, the MAD itself is estimated from few observations, so the robust-z thresholds are rules of thumb, not guarantees — more history would sharpen them.
+- It only scans the metrics we track; an anomaly in an un-modeled line (e.g. a specific cost item) wouldn't be seen.
+- "Explained" relies on what the company *disclosed* (the $388M split). An undisclosed driver would show up as "unexplained" — which is the honest outcome, but means the label is only as good as the disclosure.
+- It flags; it does not diagnose root cause. A flag is the start of the human's investigation, not the end.
+
+### Interview questions you should now be able to answer
+1. *Why a robust z-score (median/MAD) instead of a normal z-score?* With ~20 points, one outlier inflates the standard deviation enough to mask itself; median and MAD are resistant to outliers, so the anomaly still stands out.
+2. *How do you avoid flagging seasonality as an anomaly?* Score year-over-year growth (same fiscal quarter), which compares like with like, instead of quarter-over-quarter, which would flag PANW's Q4 spike every year.
+3. *What's the difference between a discrepancy and an anomaly?* A discrepancy is a data-integrity break (numbers don't reconcile); an anomaly is a surprising but internally-consistent result. Different detectors, different responses.
+4. *Why label anomalies "explained" vs "unexplained"?* A CFO needs the one alarm with no known cause, not a wall of alerts; cross-checking each flag against disclosures (the $388M acquisition) separates expected events from things that genuinely need investigation — that's the analyst judgment the tool adds.
+5. *How does anomaly detection stay within the no-hallucination guardrail?* The flags are computed (rule-based), the WHY text is templated from those computed numbers, and every figure is folded into the verifier's source-of-truth, so any narration of an anomaly is still mechanically checked.
+
+---
+
 ## Stages 4 & 5 — Transcript signals + LLM executive summary (V3)
 
 ### Fundamental (the intuition)
@@ -151,6 +184,26 @@ The numbers tell you *what* happened; management's words hint at *what's coming*
 
 ---
 
+## Built for the FP&A user — and the road to production
+
+### Fundamental (the intuition)
+The hardest part of this kind of work isn't the math — it's being the **bridge** between what's technically possible and what an FP&A team actually needs. An engineer can build a forecast; knowing that a CFO wants a *range because they plan around the downside* is the FP&A judgment. So the project now states, for every output, **who it's for, what decision it supports, and why it's built that way** — justified by user need, not by technique. That framing lives in one place (`src/framing.py`) and is rendered at the top of the dashboard, on each tab, and in the README, so it can't drift.
+
+### Technical (the how)
+- **One source of framing.** `framing.LENS` holds a `{who, decision, why}` entry per output; the dashboard renders it via `framing.caption(key)` and a test asserts every output is covered — the "justify by user need" rule is enforced, not aspirational.
+- **Chat as the centerpiece.** The Q&A agent (`chat.py`) now routes plain-English questions across intents (forecast, the beat, **anomalies**, RPO, margin, segments, tone), answers with the quarter cited and the **source tagged** ("per the variance bridge", "the anomaly scan"), and is bounded by the same verifier. The live agent is fed the computed **variance read and anomaly flags** as context, and those figures are folded into the verifier's dataset-wide source-of-truth (`verify._add_variance_facts` / `_add_anomaly_facts`) so a narrated answer about the beat or an anomaly still passes the no-hallucination gate. Offline, a deterministic intent responder keeps the tab working at zero cost.
+- **The POC→IT handoff.** `PRODUCTIONIZATION.md` documents what the team actually does next: hand the POC to IT to scale. It draws the line between **what stays** (the FP&A logic and the guardrails — the value) and **what gets rebuilt** (data feeds, orchestration, auth, hosting), and spells out live data contracts, the retraining/promotion gate, the MNPI security boundary around the LLM, and the load-bearing guardrails that must not be optimized away.
+
+### Financial (the meaning)
+- This is the competency the role prizes: **honesty about forecasts** (a calibrated range, flagged limits, anomalies labeled expected vs. unexplained) and **deep understanding of the data/context** (organic vs. inorganic, what a CFO does with each number). The reframe makes that explicit; the productionization note shows the maturity to ship it responsibly.
+
+### Interview questions you should now be able to answer
+1. *Why frame every feature by user need instead of technique?* Because the team's core value is being the bridge — knowing what fits the FP&A user. A range beats a point not because it's fancier, but because a CFO plans around the downside.
+2. *What makes the chat agent safe to put in front of a non-technical exec?* It answers only from computed data, cites the quarter and source, and every figure is mechanically verified — a quick question can't become a quick mistake.
+3. *What stays and what gets rebuilt when this hands off to IT?* The FP&A models and the guardrails (forecast/variance/anomaly/verifier) stay; the data feeds, orchestration, auth, and hosting get rebuilt. The guardrails are load-bearing and must survive the rewrite.
+
+---
+
 ## Glossary
 
 | Term | One-line definition |
@@ -175,6 +228,13 @@ The numbers tell you *what* happened; management's words hint at *what's coming*
 | **Calibration** | Whether stated confidence matches reality (does an 80% band contain the truth 80% of the time?). |
 | **Conformal prediction** | Building prediction intervals from a model's actual out-of-sample errors, giving honest coverage. |
 | **Stock split** | Dividing each share into more shares; changes per-share metrics (EPS) but not the business. |
+| **Anomaly detection** | Automatically flagging data points or results that depart from their expected pattern. |
+| **Discrepancy / reconciliation** | A break in an accounting identity (numbers that should tie out don't); reconciliation is the tie-out check. |
+| **Robust z-score** | How many robust-sigmas a value sits from the median: `(value − median) / (1.4826 · MAD)`; resistant to outliers. |
+| **MAD (median absolute deviation)** | The median of the absolute deviations from the median — an outlier-resistant measure of spread. |
+| **Trend / control band** | The normal range a metric is expected to stay within; breaking it flags an anomaly. |
+| **Severity vs status** | Severity = how unusual (info/warning/critical); status = whether we know why (explained/unexplained) — kept orthogonal. |
+| **Explained vs unexplained anomaly** | A flag a disclosure accounts for (expected, e.g. an acquisition) vs one with no known cause (investigate). |
 | **Variance** | The difference between an actual result and a plan/forecast, in $ and %. |
 | **Favorable / Unfavorable** | Whether a variance helps (F) or hurts (U); the sign of "good" flips for cost lines. |
 | **Variance bridge / waterfall** | A chart decomposing plan→actual into additive components that must sum to the total. |

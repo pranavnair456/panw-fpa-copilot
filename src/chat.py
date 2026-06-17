@@ -1,14 +1,17 @@
-"""Chat-with-your-financials agent (V3 differentiator).
+"""Chat-with-your-financials agent — the demo centerpiece (V3 differentiator).
 
-A natural-language interface that answers questions ("what drove the Q3 beat?")
-ONLY from the computed pipeline — financials, forecast, variance — with the
-quarter cited, and every figure routed through the number-verification harness.
-This showcases agentic AI bound by the same no-hallucination discipline as the
-rest of the system: if the model cites a number that isn't in the computed data,
-the answer is flagged.
+A natural-language interface a NON-TECHNICAL FP&A user or executive can use:
+ask a plain-English question ("what drove the Q3 beat?", "is anything anomalous
+this quarter?") and get a concise, **quarter-cited, source-tagged** answer drawn
+ONLY from the computed pipeline — financials, forecast, variance, and the
+anomaly scan — with every figure routed through the no-hallucination verifier.
+This is agentic AI under the same discipline as the rest of the system: a number
+the model can't back with computed data is flagged, not trusted.
 
-Offline (no key) a lightweight keyword responder handles common questions from
-the data so the chat tab still works; the live Claude agent activates with a key.
+Offline (no key) a deterministic intent responder answers the common questions
+from the data so the tab always works; the live Claude agent activates with a key
+and gets the same computed facts (financials + variance + anomalies + signals) as
+its only allowed source.
 """
 from __future__ import annotations
 from dataclasses import dataclass
@@ -29,20 +32,59 @@ class ChatAnswer:
     source: str
 
 
+# --------------------------------------------------------------- shared facts
+def _latest_inorganic_quarter(df: pd.DataFrame) -> str:
+    """The most recent quarter with disclosed acquisition revenue (the variance /
+    anomaly focus quarter); falls back to the last quarter."""
+    inorg = df[df["inorganic_revenue"] > 0]
+    return (inorg["fiscal_quarter"].iloc[-1] if not inorg.empty
+            else df["fiscal_quarter"].iloc[-1])
+
+
+def _variance_summary_line(quarter: str) -> str:
+    from src.variance import build_report
+    s = build_report(quarter).summary
+    share = (f" Acquisitions account for {s['inorganic_share_of_beat_%']:.0f}% of the "
+             f"beat versus forecast."
+             if s.get("inorganic_share_of_beat_%") is not None else "")
+    return (f"{quarter}: total revenue ${s['actual_total']:,.0f}M = organic "
+            f"${s['actual_organic']:,.0f}M + inorganic ${s['inorganic']:,.0f}M "
+            f"(CyberArk + Chronosphere). Organic beat our ${s['forecast_organic']:,.0f}M "
+            f"forecast by ${s['organic_beat_$']:+,.0f}M; vs guidance midpoint "
+            f"${s['guidance_midpoint']:,.0f}M the result was ${s['vs_guidance_$']:+,.0f}M "
+            f"({s['vs_guidance_%']:+.1f}%, {s['vs_guidance_flag']}).{share}")
+
+
+def _anomaly_lines(quarter: str) -> tuple[str, list]:
+    """A plain-English summary of the anomaly scan + the raw flag list."""
+    from src.anomaly import build_report
+    rep = build_report(quarter, run_bt=False)
+    unexpl = [a for a in rep.anomalies if a.status == "unexplained"]
+    expl = [a for a in rep.anomalies if a.status == "explained"]
+    head = (f"The scan flagged {len(rep.anomalies)} item(s): {len(unexpl)} unexplained "
+            f"(worth investigating) and {len(expl)} expected (explained by disclosure).")
+    return head, rep.anomalies
+
+
 def dataset_context() -> str:
-    """A compact, self-contained dump of the computed numbers for the agent."""
+    """A compact, self-contained dump of the computed numbers for the live agent."""
     df = load()
+    fq = _latest_inorganic_quarter(df)
     cols = ["fiscal_quarter", "revenue_total", "revenue_organic", "inorganic_revenue",
             "revenue_product", "revenue_subscription", "rpo", "ngs_arr",
             "non_gaap_op_margin", "guidance_revenue_next_q_low", "guidance_revenue_next_q_high"]
-    table = df[cols].to_string(index=False)
     parts = [
         "PANW quarterly financials (all $ in millions; FY ends Jul 31):",
-        table,
+        df[cols].to_string(index=False),
         "\nNotes: revenue_organic excludes acquisition revenue; FY2026Q3 inorganic "
         "$388M = CyberArk + Chronosphere (also $1,800M of RPO and $1,600M of NGS ARR). "
         "billings discontinued after FY2024Q1; NGS ARR first disclosed FY2024Q4.",
+        f"\nVariance read — {_variance_summary_line(fq)}",
     ]
+    head, anomalies = _anomaly_lines(fq)
+    parts.append("\nAnomaly scan. " + head)
+    for a in anomalies:
+        parts.append(f"  - [{a.severity}/{a.status}] {a.quarter} {a.metric}: {a.why}")
     if config.SIGNALS_CSV.exists():
         sig = pd.read_csv(config.SIGNALS_CSV)
         parts.append("\nTranscript signals (per quarter):\n" + sig[
@@ -52,36 +94,86 @@ def dataset_context() -> str:
 
 
 SYSTEM = (
-    "You are an FP&A analyst answering questions about Palo Alto Networks using ONLY "
-    "the DATA provided. Rules: (1) Every number you state must appear in the DATA — "
-    "never invent or estimate. (2) Cite the fiscal quarter for any figure. (3) If the "
-    "answer isn't in the DATA, say so plainly. (4) Be concise and concrete."
+    "You are an FP&A analyst answering questions about Palo Alto Networks for a "
+    "non-technical finance user, using ONLY the DATA provided (financials, the "
+    "variance read, the anomaly scan, and transcript signals). Rules: (1) Every "
+    "number you state must appear in the DATA — never invent or estimate. (2) Always "
+    "cite the fiscal quarter for any figure, and name the source (e.g. 'per the "
+    "variance bridge' / 'the anomaly scan'). (3) If something isn't in the DATA, say "
+    "so plainly rather than guessing. (4) Be concise and concrete — a few sentences."
 )
 
+_OFFLINE = "[offline mode — set ANTHROPIC_API_KEY for the full conversational agent]"
 
+
+# ------------------------------------------------------------- offline router
 def _offline_answer(question: str) -> str:
-    """Deterministic keyword responder for offline mode (no API key)."""
+    """Deterministic, source-tagged intent responder for offline mode."""
     df = load()
     last = df.iloc[-1]
+    fq = _latest_inorganic_quarter(df)
     q = question.lower()
-    if "forecast" in q or "next" in q or "predict" in q:
+
+    def kw(*words):
+        return any(w in q for w in words)
+
+    if kw("anomal", "unusual", "discrepan", "flag", "off", "stand out", "investigat"):
+        head, anomalies = _anomaly_lines(fq)
+        unexpl = [a for a in anomalies if a.status == "unexplained"]
+        expl = [a for a in anomalies if a.status == "explained"]
+        lines = [f"{head} (source: anomaly scan)"]
+        if expl:
+            lines.append("Expected (explained): " + expl[0].why)
+        if unexpl:
+            lines.append("Most notable unexplained: " + unexpl[0].why)
+        return " ".join(lines) + f" {_OFFLINE}"
+
+    if kw("forecast", "next", "predict", "outlook", "guide"):
         from src.forecast import run_forecast, load_conformal_errors
         fc = run_forecast(df=df, conformal_errors=load_conformal_errors())
         i = 1 if len(fc.future_quarters) > 1 else 0
         return (f"The backtested model forecasts {fc.future_quarters[i]} organic revenue of "
-                f"${fc.total_point[i]:,.0f}M (80% interval ${fc.total_low[i]:,.0f}-"
-                f"${fc.total_high[i]:,.0f}M). [offline mode — set ANTHROPIC_API_KEY for full chat]")
-    if "inorganic" in q or "cyberark" in q or "acquisition" in q or "drove" in q or "beat" in q:
-        return (f"In {last['fiscal_quarter']}, total revenue was ${last['revenue_total']:,.0f}M, "
-                f"of which ${last['inorganic_revenue']:,.0f}M was inorganic (CyberArk + Chronosphere); "
-                f"organic revenue was ${last['revenue_organic']:,.0f}M. The beat versus our forecast "
-                f"was mostly acquisition-driven. [offline mode — set ANTHROPIC_API_KEY for full chat]")
-    if "rpo" in q or "backlog" in q:
-        return (f"{last['fiscal_quarter']} RPO (backlog) was ${last['rpo']:,.0f}M. "
-                f"[offline mode — set ANTHROPIC_API_KEY for full chat]")
-    return (f"Latest quarter {last['fiscal_quarter']}: total revenue ${last['revenue_total']:,.0f}M "
-            f"(organic ${last['revenue_organic']:,.0f}M). Ask about revenue, the forecast, RPO, or "
-            f"what drove the beat. [offline mode — set ANTHROPIC_API_KEY for full chat]")
+                f"${fc.total_point[i]:,.0f}M (80% interval ${fc.total_low[i]:,.0f}–"
+                f"${fc.total_high[i]:,.0f}M) (source: forecast). The range matters more than "
+                f"the point — plan around the downside. {_OFFLINE}")
+
+    if kw("drove", "beat", "variance", "vs guidance", "vs forecast", "why"):
+        return _variance_summary_line(fq) + f" (source: variance bridge) {_OFFLINE}"
+
+    if kw("inorganic", "cyberark", "chronosphere", "acquisition", "m&a"):
+        return (f"In {fq}, ${last['inorganic_revenue']:,.0f}M of total revenue "
+                f"(${last['revenue_total']:,.0f}M) was inorganic — the CyberArk and "
+                f"Chronosphere acquisitions; organic revenue was "
+                f"${last['revenue_organic']:,.0f}M (source: financials). {_OFFLINE}")
+
+    if kw("rpo", "backlog"):
+        return (f"{fq} RPO (backlog) was ${last['rpo']:,.0f}M, of which $1,800M is acquired "
+                f"(CyberArk + Chronosphere) (source: financials / variance). {_OFFLINE}")
+
+    if kw("margin", "profit"):
+        if pd.notna(last["non_gaap_op_margin"]):
+            return (f"{last['fiscal_quarter']} non-GAAP operating margin was "
+                    f"{last['non_gaap_op_margin']:.1f}% (source: financials). {_OFFLINE}")
+
+    if kw("product", "subscription", "segment", "mix"):
+        return (f"{last['fiscal_quarter']} revenue split: product "
+                f"${last['revenue_product']:,.0f}M and subscription & support "
+                f"${last['revenue_subscription']:,.0f}M (source: financials). {_OFFLINE}")
+
+    if kw("sentiment", "tone", "management", "confiden"):
+        if config.SIGNALS_CSV.exists():
+            s = pd.read_csv(config.SIGNALS_CSV)
+            r = s[s["fiscal_quarter"] == fq]
+            if not r.empty:
+                r = r.iloc[0]
+                return (f"For {fq}, management sentiment read as '{r['management_sentiment']}' "
+                        f"with a '{r['guidance_tone']}' guidance tone (source: transcript "
+                        f"signals). {_OFFLINE}")
+
+    return (f"Latest quarter {last['fiscal_quarter']}: total revenue "
+            f"${last['revenue_total']:,.0f}M (organic ${last['revenue_organic']:,.0f}M) "
+            f"(source: financials). Ask me about the forecast, what drove the beat, "
+            f"anything anomalous, RPO, margin, segments, or management tone. {_OFFLINE}")
 
 
 def ask(question: str) -> ChatAnswer:

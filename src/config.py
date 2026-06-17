@@ -68,6 +68,17 @@ RPO_GROWTH_QOQ = None            # e.g. 0.05 for +5% QoQ
 # history; NGS ARR starts FY2024Q4; billings discontinued after FY2024Q1).
 PRIMARY_DRIVER = "rpo"
 
+# ---- Discrepancy & anomaly detection (Stage 3.5) ---------------------------
+# Interpretable, rule-based flags reusing the forecast + variance outputs. We
+# keep it transparent (robust statistics + accounting identities + the already-
+# calibrated conformal band), never a black box — every flag must be explainable
+# to a CFO. Robust z = (value - median) / (1.4826 * MAD); thresholds below.
+ANOMALY_REPORT = DATA / "anomaly_report.json"
+ANOMALY_Z_WARNING = 2.5            # |robust z| at/above this -> warning
+ANOMALY_Z_CRITICAL = 3.5          # |robust z| at/above this -> critical
+ANOMALY_MIN_POINTS = 8            # don't trend-scan a metric with fewer points
+ANOMALY_BAND_LEVEL = PREDICTION_INTERVAL   # reuse the calibrated 80% band
+
 # ---- LLM layer (Stages 4-5, V3) — Anthropic Claude --------------------------
 # Sonnet for high-volume structured extraction; Opus for the CFO-grade prose
 # and the chat agent. Override by editing here. All stages fall back to a

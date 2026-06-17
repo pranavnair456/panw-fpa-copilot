@@ -6,7 +6,7 @@ PY   := $(VENV)/bin/python
 PIP  := $(VENV)/bin/pip
 
 .DEFAULT_GOAL := help
-.PHONY: help setup run pipeline ingest forecast backtest variance signals summary verify chat test clean
+.PHONY: help setup run pipeline ingest forecast backtest variance anomaly signals summary verify chat test clean
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -36,6 +36,9 @@ backtest: $(VENV)  ## Stage 2: walk-forward validation report
 variance: $(VENV)  ## Stage 3: variance bridge + attribution
 	$(PY) -m src.variance
 
+anomaly: $(VENV)  ## Stage 3.5: discrepancy & anomaly scan -> anomaly_report.json
+	$(PY) -m src.anomaly
+
 signals: $(VENV)  ## Stage 4: transcript signals -> signals.csv
 	$(PY) -m src.signals
 
@@ -53,4 +56,4 @@ test: $(VENV)  ## Run the pytest suite
 
 clean:  ## Remove caches and generated artifacts (keeps raw SEC data)
 	rm -rf src/__pycache__ tests/__pycache__ .pytest_cache
-	rm -f data/signals.csv data/exec_brief.md data/backtest_report.json data/variance_report.json
+	rm -f data/signals.csv data/exec_brief.md data/backtest_report.json data/variance_report.json data/anomaly_report.json
