@@ -88,15 +88,20 @@ with tab_fc:
     st.subheader("Probabilistic organic-revenue forecast")
     c1, c2, c3 = st.columns(3)
     horizon = c1.slider("Forecast horizon (quarters)", 1, 4, config.FORECAST_HORIZON)
-    sigma = c2.slider("Uncertainty scale (Monte Carlo)", 0.5, 2.5,
-                      config.ASSUMPTION_SIGMA_SCALE, 0.1,
-                      help="Stress-test the model's intrinsic uncertainty width.")
     method = c3.radio("Interval method", ["conformal", "mc"],
                       index=0 if config.INTERVAL_METHOD == "conformal" else 1,
                       horizontal=True,
                       help="Conformal = band width learned from walk-forward "
-                           "residuals (well-calibrated). MC = model's own variance "
-                           "(overconfident in backtest).")
+                           "residuals (well-calibrated, 86% coverage). MC = model's own "
+                           "variance (overconfident in backtest, 43%).")
+    sigma = c2.slider("Uncertainty scale (Monte Carlo)", 0.5, 2.5,
+                      config.ASSUMPTION_SIGMA_SCALE, 0.1,
+                      disabled=(method == "conformal"),
+                      help="Stress-tests the model's own uncertainty width. Only affects "
+                           "the 'mc' interval — switch the method to 'mc' to see it move "
+                           "the band.")
+    if method == "conformal":
+        c2.caption("↔ applies to the **mc** interval — switch to enable")
 
     config.INTERVAL_METHOD = method  # honor the live toggle
     res = run_forecast(df=df, horizon=horizon, sigma_scale=sigma,
