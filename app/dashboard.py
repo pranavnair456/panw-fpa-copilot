@@ -34,6 +34,11 @@ from src.llm.client import client as llm
 st.set_page_config(page_title="PANW AI FP&A Copilot", layout="wide", page_icon="📊")
 
 
+def md(text: str) -> str:
+    """Escape $ so Streamlit markdown doesn't render dollar amounts as LaTeX math."""
+    return str(text).replace("$", "\\$")
+
+
 @st.cache_data
 def get_data():
     df = pd.read_csv(config.FINANCIALS_CSV, parse_dates=["period_end_date"])
@@ -228,7 +233,7 @@ with tab_var:
 
     st.markdown("**Notes (timing vs permanent, caveats)**")
     for n in rep.notes:
-        st.markdown(f"- {n}")
+        st.markdown(f"- {md(n)}")
 
 # ---------------------------------------------------------------- Signals tab
 with tab_sig:
@@ -265,9 +270,12 @@ with tab_sum:
     badge = "✅ all figures verified against computed data" if brief.verified else \
         f"❌ {len(brief.violations)} unverifiable figure(s): {[v.raw for v in brief.violations]}"
     (st.success if brief.verified else st.error)(
-        f"Number-verification harness: {badge}  ·  source: {brief.source}")
-    st.markdown(brief.text)
-    st.download_button("⬇️ Download brief (Markdown)", brief.text,
+        md(f"Number-verification harness: {badge}  ·  source: {brief.source}"))
+    display = md(brief.text)
+    if display.startswith("# "):       # demote the brief's H1 (tab already has a header)
+        display = "### " + display[2:]
+    st.markdown(display)
+    st.download_button("⬇️ Download brief (Markdown)", brief.text,  # raw $ in the .md
                        file_name=f"PANW_exec_brief_{q}.md", mime="text/markdown")
 
 # -------------------------------------------------------------------- Chat tab
@@ -287,4 +295,4 @@ with tab_chat:
         (st.success if ans.verified else st.warning)(
             f"{'✅ verified' if ans.verified else '⚠️ contains unverifiable figures'} "
             f"· source: {ans.source}")
-        st.markdown(ans.text)
+        st.markdown(md(ans.text))
