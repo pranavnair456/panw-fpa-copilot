@@ -1,10 +1,119 @@
 # LEARNING.md — the teaching log
 
-This file exists so that by the end of the project you can explain **every** part of it from first principles — the finance, the math, and the code. It's written *for you*, like a tutor would, and updated at the end of each stage. Each stage is explained at three levels: **Fundamental** (the intuition), **Technical** (the how), and **Financial** (what it means to a CFO). Jargon is defined the first time it appears and collected in the glossary at the bottom.
-
-> Status: **MVP shipped** — Stage 0 (data), Stage 1 (forecast), Stage 2 (backtest) + dashboard. V2/V3 sections will be appended as they land.
+> This file teaches you the whole system from zero — the finance, the code, and the math — so you can explain every part from first principles. **Read it top to bottom the first time.** **Parts 1–3** are a guided tour of *what the system is and how it flows*, assuming no finance or programming background. **Part 4** is the detail on each stop, at three levels — **Fundamental** (the intuition) / **Technical** (the how) / **Financial** (what it means to a CFO). **Part 5** is the glossary. Every new word is defined the first time it appears.
+>
+> Status: **complete** — all stages shipped (data → forecast → backtest → variance → anomaly → signals → summary), plus a no-hallucination verifier, a chat agent, and a 7-tab dashboard.
 
 ---
+
+## Part 1 — Start here: what is this?
+
+Picture a junior financial analyst whose whole job is one company's quarterly numbers. Every three months the company publishes results, and the analyst must: (1) **predict** next quarter, (2) **explain** why the latest quarter came in above or below plan, (3) **flag** anything that looks wrong or surprising, and (4) **write the one-page summary** the CFO takes to the board. This project is software that does all four — for **Palo Alto Networks (PANW)**, a large cybersecurity company — using only its **public financial filings**, under one ironclad rule: **it never makes up a number.** When it writes English, it may only repeat figures it actually computed, and a separate piece of code mechanically checks that.
+
+### What you need to know first (the absolute basics)
+- **Revenue** — the money a company earns from selling its products and services in a period. The headline number everyone watches.
+- **A quarter** — a three-month chunk of a company's financial ("fiscal") year. PANW's fiscal year ends July 31, so quarters are labeled like `FY2026Q3` (third quarter of fiscal 2026).
+- **A forecast** — a prediction of a future number; here, next quarter's revenue.
+- **A model** — a small math formula whose settings are *learned* from past data so it can predict the future. "**Training**" a model = fitting those settings to history.
+- **A CSV / table** — a spreadsheet-like file of rows and columns. Here, one row per quarter.
+- **A Python module** — one code file (e.g. `forecast.py`) that does one job. The system is ~10 of them in the `src/` folder.
+- **The dashboard** — the web page (built with a tool called *Streamlit*) that shows the results in tabs. It's what you actually look at.
+- **An LLM (large language model)** — an AI like Claude that writes text. Here it only *narrates* (turns computed numbers into prose); it never calculates.
+
+## Part 2 — The flow, end to end
+
+### The map
+
+Data flows left-to-right through the modules. Each module reads the previous output and writes the next. There is exactly **one loop** (the backtest measures the forecast's real errors and feeds them back to set its range width) and **one gate** (the verifier, which every AI-written sentence must pass).
+
+```
+  SEC filings  (8-K earnings press releases  +  XBRL machine-readable data)
+        │   numbers hand-extracted, each with a quote proving it
+        ▼
+  ingest.py  (Stage 0) ── build + reconcile ──►  financials.csv   ← the one clean, sourced table
+        │
+        ├───►  forecast.py (Stage 1) ─────►  a revenue RANGE for next quarter
+        │            ▲     │
+        │  residuals │     │ (re-forecasts the past, over and over)
+        │  set the   │     ▼
+        │  band  ────┴──  backtest.py (Stage 2) ─►  "is the forecast trustworthy?"  + error history
+        │
+        ├───►  variance.py  (Stage 3)   ─►  WHY actual ≠ plan   (organic vs acquisition bridge)
+        ├───►  anomaly.py   (Stage 3.5) ─►  WHAT looks off       (expected vs unexplained)
+        └───►  signals.py   (Stage 4)   ─►  management TONE      (LLM reads the commentary)
+                     │
+   all computed ─────┴────►  summary.py (Stage 5) ─►  CFO brief (LLM writes the prose)
+   numbers                                │
+                                          ▼
+                                     verify.py  ──  GATE: every $ and % in the AI's text
+                                          │          must match a computed value, or it's rejected
+                                          ▼
+                              dashboard.py  /  chat.py   ──►  what you see and ask
+```
+
+### Follow one quarter's number through the system
+
+The most concrete way to understand the flow is to follow a single real number — **FY2026Q3 revenue** — from filing to dashboard. (FY2026Q3 is special: it's the quarter PANW closed its ~$25B **CyberArk** acquisition, plus a smaller one, Chronosphere.)
+
+1. **It starts as a filing.** PANW publishes an earnings press release (an SEC document called an **8-K**). It reports total revenue of **$3,002M** ($M = millions of dollars). A human copies that figure into `data/raw/earnings_extracted.json` *with a short quote proving it* — so every number is traceable to its source. (**Provenance** = being able to point to where a number came from.)
+
+2. **`ingest.py` builds the clean table.** It reads that JSON and writes `data/financials.csv` — one tidy row per quarter. It also does two integrity checks: that the revenue **segments** (PANW splits revenue into "Product" and "Subscription") add up to the total, and that the total matches an independent government source (the SEC's **XBRL** database). Crucially, it computes **organic** revenue. PANW disclosed that **$388M** of the $3,002M came from the acquisitions (that's **inorganic** revenue — bought, not grown); the rest, **$2,614M**, is **organic** (the existing business). Separating them keeps an acquisition from masquerading as real growth.
+
+3. **`forecast.py` predicts it — as a range.** The forecaster trains a simple, interpretable model called **ETS** (Exponential Smoothing — it tracks the current level, the trend, and the repeating yearly **seasonality**, e.g. PANW's big Q4) on the *organic* history only. It then runs a **Monte Carlo** simulation — playing the future out thousands of times with random noise — to produce not one number but an **80% prediction interval** (a range we're ~80% confident the answer falls in). Trained only on quarters *before* FY2026Q3, it forecast organic revenue of **$2,564M**, range ≈ **$2,515–2,613M**. The actual organic came in at **$2,614M** — just at the top edge, about +2%. A range, not a point, because a CFO plans around the downside.
+
+4. **`backtest.py` proves the forecast is trustworthy.** Before you trust *tomorrow's* forecast, check whether *yesterday's* would have been right. **Backtesting** = stand at each past quarter, forecast the next using only data available then ("**walk-forward**"; never peeking at the future, which would be **leakage**), and score it. The model's average error (**MAPE**, mean absolute percentage error) is **1.23%** — versus **8.92%** for a dumb "repeat last quarter's growth" baseline. It also discovered the forecast's *own* range was over-confident (it covered the truth only 43% of the time, not 80%), and fixed it with **conformal** intervals — setting the range width from the model's *real* past errors, lifting coverage to **86%**. Those measured errors loop back into `forecast.py` — that's the one feedback arrow on the map.
+
+5. **`variance.py` explains the result.** "We beat plan by $59M" is useless without *why*. It builds a **bridge** that reconciles exactly: forecast organic **$2,564M** → **+$50M** the organic business beat the forecast → **+$388M** the acquisitions → **$3,002M** actual. So versus our forecast, ~89% of the beat was the acquisition (M&A), not organic muscle — a very different story than a pure organic beat.
+
+6. **`anomaly.py` flags what's worth a look.** It scans every quarter for things that look off — broken tie-outs, metrics jumping outside their normal band, actuals landing outside the trustworthy forecast range. FY2026Q3's total revenue is a big outlier versus the organic forecast, so it gets **flagged** — but then **labeled "expected,"** because we *know* the reason: the disclosed $388M acquisition. A genuine surprise with no known cause would be labeled "unexplained — investigate." Flagging *and* judging is the analyst's real skill.
+
+7. **`signals.py` reads the words.** The numbers say *what* happened; management's commentary hints at *what's next*. The LLM reads the press-release narrative and extracts structured tags — sentiment, whether guidance is being raised or lowered, what they emphasized — so tone becomes trackable data.
+
+8. **`summary.py` writes the brief, `verify.py` guards it.** The LLM receives a **FACTS block** (the only numbers it's allowed to use) and drafts a one-page CFO brief. Then **`verify.py`** reads the draft, pulls out every dollar amount and percentage, and checks each against the set of values we actually computed. If the AI wrote a number that isn't real, the brief is **rejected and regenerated**. That gate is what makes an AI safe to point at financial numbers.
+
+9. **You see it on the dashboard, or just ask.** `dashboard.py` shows all of this in tabs; `chat.py` lets you ask in plain English ("what drove the Q3 beat?", "anything anomalous?") and answers only from the computed numbers, every figure run through the same verifier.
+
+### What actually runs when you…
+
+Each stage is also a command you can run on its own (see the `Makefile` / `README.md`). They read and write the files in `data/`:
+
+| Command | What happens |
+|---|---|
+| `python -m src.ingest` | Reads the raw JSON → writes `data/financials.csv`; prints the reconciliation check. |
+| `python -m src.forecast` | Trains ETS, simulates, prints the forecast table + the held-out FY2026Q3 check. |
+| `python -m src.backtest` | Walk-forward test; prints accuracy + calibration; writes `data/backtest_report.json`. |
+| `python -m src.variance` | Builds the bridge + attribution for a quarter; writes `data/variance_report.json`. |
+| `python -m src.anomaly` | Runs the three detectors; prints ranked flags; writes `data/anomaly_report.json`. |
+| `python -m src.signals` | Extracts management tone per quarter → `data/signals.csv`. |
+| `python -m src.summary` | Drafts + verifies the CFO brief → `data/exec_brief.md`. |
+| `python -m src.chat "…"` | Answers one natural-language question. |
+| `streamlit run app/dashboard.py` | Opens the 7-tab dashboard, which calls all the functions above and caches the results. |
+
+### How the pieces connect
+
+- **`config.py` is the control panel.** Every assumption lives there, not buried in code: the file paths, the **random seed** (a fixed number that makes the random simulation repeat identically every run, so results are auditable), the 80% confidence level, which model each segment uses. Change a value there and the whole system changes — predictably.
+- **`llm/client.py` is the on/off switch for the AI.** If an `ANTHROPIC_API_KEY` is set, the LLM stages use live Claude; if not, they fall back to deterministic **offline** versions (a template brief, a keyword-based chat). So the entire project runs, and is tested, for free — the AI is an upgrade, not a dependency.
+- **The data dependencies** (which output feeds which) are exactly the arrows on the map: `financials.csv` feeds forecast/variance/anomaly/signals; `backtest_report.json`'s errors feed the forecast's range; everything feeds `verify.py`'s "allowed values" set, which gates `summary.py` and `chat.py`.
+- The key functions you'll see named in Part 4: `run_forecast` (Stage 1), `run_backtest` (Stage 2), `forecast_for` and `build_report` (Stage 3 variance; `anomaly.py` also has a `build_report`), `verify_text` / `build_source_of_truth` (the gate).
+
+## Part 3 — The big ideas that recur
+
+These principles show up in almost every stage. Each one exists to serve the user (a CFO who has to *trust* and *act on* these numbers):
+
+- **Provenance** — every input number traces to a specific filing. *Why a CFO cares:* "where did this come from?" is the first question in any finance review.
+- **No leakage** — a forecast or backtest may only ever train on the past, never the future. *Why:* peeking at the answer makes a model look brilliant and then fail in real life.
+- **A range, not a point** — outputs are intervals with a stated confidence. *Why:* the downside case is what drives how much cash cushion or hiring restraint you need.
+- **Calibration** — an "80% range" should actually contain the truth ~80% of the time. *Why:* a range that's secretly only right 43% of the time badly understates risk.
+- **No hallucinated numbers** — the LLM only narrates computed figures, and the verifier mechanically enforces it. *Why:* a confident, wrong number in a board brief is worse than no brief.
+- **Interpretable models** — with little data we use simple, explainable math, not black-box deep learning. *Why:* a CFO must be able to ask "why did you predict that?" and get an answer.
+- **Offline mode** — the whole thing runs without an API key. *Why:* reproducibility, zero cost, and no single point of failure for a demo.
+- **Human in the loop** — the system drafts and flags; a person owns the final judgment. *Why:* AI is the analyst's leverage, not their replacement.
+
+---
+
+## Part 4 — Each stage, in depth (three levels)
+
+The tour above is the map; below is the detail on each stop — **Fundamental** (the intuition), **Technical** (the how), and **Financial** (what it means to a CFO) — with the interview questions you should be able to answer and the honest limits of each stage.
 
 ## Stage 0 — Data foundation
 
@@ -208,6 +317,18 @@ The hardest part of this kind of work isn't the math — it's being the **bridge
 
 | Term | One-line definition |
 |---|---|
+| **Revenue** | The money a company earns from selling its products/services in a period. |
+| **Quarter** | A three-month slice of a company's fiscal year (e.g. `FY2026Q3`). |
+| **Fiscal year** | A company's 12-month accounting year; PANW's ends July 31. |
+| **CSV / table** | A rows-and-columns data file; here, one row per quarter. |
+| **Python module** | A single code file doing one job (e.g. `forecast.py`); the system is ~10 of them in `src/`. |
+| **Pipeline** | A chain of steps where each step's output feeds the next. |
+| **Model / training** | A formula whose settings are *learned* ("trained") from past data to make predictions. |
+| **Random seed** | A fixed number that makes a random simulation repeat identically each run, so results are auditable. |
+| **Dashboard / Streamlit** | The interactive web page (built with the Streamlit library) that shows the results in tabs. |
+| **LLM (large language model)** | An AI like Claude that writes text; here it only *narrates* computed numbers, never calculates. |
+| **FACTS block** | The fixed list of computed numbers handed to the LLM as the only figures it is allowed to use. |
+| **Provenance** | The traceable source of a number — which filing it came from. |
 | **8-K / Exhibit 99.1** | An SEC filing companies use to announce material events; the earnings press release is attached as Exhibit 99.1. |
 | **XBRL** | A machine-readable tagging standard for financial filings; the SEC exposes it as a free API. |
 | **GAAP / non-GAAP** | GAAP = official accounting rules; non-GAAP = company-adjusted figures (e.g. excluding stock comp) — useful but management-defined. |
