@@ -275,6 +275,43 @@ def test_anomaly_facts_verify(df):
     assert verify.verify_text(explained[0].why, facts) == []
 
 
+# ------------------------------------------- Source Data tab (provenance layer)
+def test_provenance_evidence_present():
+    """Each metric carries a verbatim evidence quote; FY2026Q3 inorganic cites the deal."""
+    from src import provenance as pv
+    ev = pv.load_evidence()
+    assert "FY2026Q3" in ev
+    quote = ev["FY2026Q3"]["inorganic_revenue"]
+    assert "388" in quote and "CyberArk" in quote
+
+
+def test_provenance_links_cover_all_quarters(df):
+    """Every quarter resolves to a real SEC source-filing URL."""
+    from src import provenance as pv
+    links = pv.source_links()
+    for q in df["fiscal_quarter"]:
+        assert q in links and "sec.gov" in links[q]
+    assert "FY2026Q3" in links
+
+
+def test_provenance_quality_stats(df):
+    """Live data-quality stats match the integrity guarantees."""
+    from src import provenance as pv
+    s = pv.quality_stats(df)
+    assert s["n_quarters"] == 21
+    assert s["segment_ok"] is True
+    assert s["n_xbrl_match"] == s["n_xbrl_checked"] >= 15   # all cross-checked quarters agree
+
+
+def test_provenance_coverage_matrix(df):
+    """Coverage reflects real gaps — never silently filled (matches no-interpolation)."""
+    from src import provenance as pv
+    cov = pv.coverage_matrix(df)
+    assert (cov.loc["Total revenue"] == 1).all()          # revenue never missing
+    assert (cov.loc["Billings"] == 0).any()               # discontinued after FY2024Q1
+    assert (cov.loc["Next-Gen Security ARR"] == 0).any()  # absent before FY2024Q4
+
+
 # ------------------------------- FP&A-user framing (P2) + chat centerpiece (P3)
 def test_framing_every_output_has_user_lens():
     """Every dashboard output is justified by a user need (who/decision/why)."""

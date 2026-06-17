@@ -1,0 +1,8 @@
+# Palo Alto Networks brand theme. Brand orange is used for highlights/links/active
+# tab only — never to signal good/bad (semantic colors live in the app code).
+[theme]
+primaryColor = "#FA582D"            # Outrageous Orange — accents, links, active tab
+backgroundColor = "#FFFFFF"         # white page
+secondaryBackgroundColor = "#F5F5F5"  # light gray for cards/panels/widgets
+textColor = "#141414"               # near-black body text
+font = "sans serif"

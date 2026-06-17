@@ -313,6 +313,26 @@ The hardest part of this kind of work isn't the math — it's being the **bridge
 
 ---
 
+## The Source Data tab & the demo UX
+
+### Fundamental (the intuition)
+The demo opens on **Source Data** because the whole story is "from filings to a board brief," and trust starts with the data. This tab makes provenance *clickable*: pick any quarter and metric, and you see the **exact sentence from the SEC filing** that proves the number. It's the financial equivalent of showing your receipts — before anyone looks at a forecast, they can see the inputs are real and checked.
+
+### Technical (the how)
+- **A thin read-layer, not new data logic.** `src/provenance.py` only *surfaces* artifacts that already exist: the per-metric **evidence quotes** in `earnings_extracted.json`, the source-filing URLs parsed from `data_dictionary.md`, a **coverage matrix** (`df.notna()` per metric × quarter), and headline **quality stats** computed live via the existing `ingest.reconcile` (cross-source agreement + segment tie-out). No figures are recomputed.
+- **What the tab renders:** a pipeline flow diagram (Sources → Extraction → Validation → Clean dataset → powers everything), a provenance table with a link to the actual 8-K, a coverage heatmap (gaps shown, never filled), a scrollable view of all 21 quarters, and the honesty callouts. It's pure data — **no LLM** — so it always works offline.
+
+### Financial (the meaning)
+- *"Where did this come from?"* is the first question in any finance review; this tab answers it for **every cell**. The data-quality panel (two independent sources agreeing to the dollar; segments reconciling every quarter) is exactly the **tie-out** a controller performs at close before trusting a number — here it's automated and visible.
+
+## Why the UX is built this way (for a non-technical user)
+
+The audience is an FP&A analyst or CFO-org exec with **zero ML background**, so the interface is designed to be understood cold:
+- **Lead with the answer, hide the method.** Each tab opens with a plain-English **"Bottom line"** and the few numbers that matter as large cards; formulas, dense tables, and controls live in **"How this works" / "Show the detail"** expanders (*progressive disclosure*). Clean surface, depth on demand.
+- **No bare jargon.** Every technical term (organic/inorganic, RPO, the 80% range, ETS, conformal, robust z-score) has a plain-English label and a one-sentence hover tooltip.
+- **Charts over tables**, each with a one-line "how to read this" caption.
+- **Palo Alto Networks brand theme**, with one careful rule: **brand orange is for branding only** (header, links, active tab, the non-semantic forecast line); **meaning** is carried by separate semantic colors — favorable **green**, unfavorable **red**, caution/expected **amber** — so a green/red number never gets confused with branding. This is the same "bridge" competency as the rest of the project: the tool fits the user, not the other way around.
+
 ## Glossary
 
 | Term | One-line definition |
@@ -329,6 +349,11 @@ The hardest part of this kind of work isn't the math — it's being the **bridge
 | **LLM (large language model)** | An AI like Claude that writes text; here it only *narrates* computed numbers, never calculates. |
 | **FACTS block** | The fixed list of computed numbers handed to the LLM as the only figures it is allowed to use. |
 | **Provenance** | The traceable source of a number — which filing it came from. |
+| **Evidence quote** | The verbatim sentence from a filing that proves a specific figure; stored per metric. |
+| **Coverage map** | A grid showing which metrics were disclosed in which quarters; blanks are real gaps, never estimates. |
+| **Data tie-out** | Checking that figures reconcile (segments sum to total; a second source agrees) before trusting them. |
+| **Progressive disclosure** | UI principle: show the answer first, tuck the method/detail behind an expander. |
+| **Semantic color** | Color used to carry meaning (favorable green / unfavorable red / caution amber), kept separate from brand color. |
 | **8-K / Exhibit 99.1** | An SEC filing companies use to announce material events; the earnings press release is attached as Exhibit 99.1. |
 | **XBRL** | A machine-readable tagging standard for financial filings; the SEC exposes it as a free API. |
 | **GAAP / non-GAAP** | GAAP = official accounting rules; non-GAAP = company-adjusted figures (e.g. excluding stock comp) — useful but management-defined. |

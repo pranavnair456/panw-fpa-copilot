@@ -37,7 +37,7 @@ For how this POC would hand off to IT and scale, see **[`PRODUCTIONIZATION.md`](
 | 5 · Summary | `src/summary.py` | LLM-drafted CFO executive brief — numbers passed in, never invented; **gated by `src/verify.py`**. |
 | ★ Guard | `src/verify.py` | Number-verification harness: cross-checks every figure in LLM output vs the computed source of truth. |
 | ★ Chat | `src/chat.py` | Chat-with-your-financials agent — answers only from computed data, routed through the verifier. |
-| 6 · Dashboard | `app/dashboard.py` | Streamlit UI — 7 tabs (Forecast, Backtest, Variance, Anomalies, Signals, Exec Summary, Chat). |
+| 6 · Dashboard | `app/dashboard.py` | Streamlit UI, PANW-branded, built for a non-technical user — 6 tabs (Source Data, Forecast, Variance, Anomalies, Exec Summary, Chat). Backtest & Signals still run under the hood (and in tests). |
 
 ## Headline results (MVP)
 
@@ -70,7 +70,7 @@ python -m src.signals     # Stage 4: transcript signals -> signals.csv
 python -m src.summary     # Stage 5: verified CFO exec brief
 python -m src.verify      # number-verification harness demo (clean vs corrupted)
 python -m src.chat "Is anything anomalous this quarter?"   # chat agent
-pytest -q                 # 32 tests incl. the no-hallucination negative test
+pytest -q                 # 36 tests incl. the no-hallucination negative test
 
 # Optional — live Claude for Stages 4-5 + chat (otherwise deterministic offline mode):
 export ANTHROPIC_API_KEY=sk-ant-...
@@ -82,9 +82,9 @@ streamlit run app/dashboard.py   # interactive 6-tab dashboard
 
 ```
 data/            financials.csv, data_dictionary.md, signals.csv, exec_brief.md, anomaly_report.json, raw/ (SEC filings + extracted JSON)
-src/             ingest, forecast, backtest, variance, anomaly, signals, summary, verify, chat, framing, config, llm/
+src/             ingest, forecast, backtest, variance, anomaly, signals, summary, verify, chat, provenance, framing, config, llm/
 app/dashboard.py Streamlit UI (7 tabs)
-tests/           pytest suite (32 tests)
+tests/           pytest suite (36 tests)
 LEARNING.md      teaching log — explains every stage at 3 levels (fundamental/technical/financial)
 PRODUCTIONIZATION.md  POC→IT handoff — live feeds, retraining, security, what stays vs. gets rebuilt
 ```

@@ -1,20 +1,25 @@
-"""Stage 6 — Streamlit dashboard (MVP slice: Forecast + Backtest tabs).
+"""Streamlit dashboard — the demo surface for the PANW AI FP&A Copilot.
 
-Run:  streamlit run app/dashboard.py
-Tabs are added as later phases land (Variance, Signals, Summary, Chat).
+Six tabs, in the demo's "data ingestion → executive summary" order:
+  Source Data | Forecast | Variance | Anomalies | Exec Summary | Chat
+
+Designed for a non-technical FP&A / CFO-org user: every tab leads with a plain-
+English bottom line + the few numbers that matter, defines every term in a hover
+tooltip, and tucks methodology and dense tables inside "How this works" expanders.
+Themed in Palo Alto Networks' brand (orange = branding only; green/red/amber carry
+meaning). Backtest and Signals still run under the hood (and in tests) — they're
+just not shown as tabs.  Run:  streamlit run app/dashboard.py
 """
 import os
 import sys
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-# On Streamlit Community Cloud the API key is provided via st.secrets, not as an
-# env var. Bridge it into the environment BEFORE importing the LLM client (which
-# reads ANTHROPIC_API_KEY at construction). Locally this is a no-op (.env wins).
+# On Streamlit Community Cloud the API key arrives via st.secrets, not an env var.
+# Bridge it in BEFORE importing the LLM client (which reads the key at construction).
 try:
     if not os.environ.get("ANTHROPIC_API_KEY") and "ANTHROPIC_API_KEY" in st.secrets:
         os.environ["ANTHROPIC_API_KEY"] = st.secrets["ANTHROPIC_API_KEY"]
@@ -23,24 +28,116 @@ except Exception:
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src import config
-from src import framing
+from src import provenance as pv
 from src.forecast import run_forecast, load_conformal_errors
-from src.backtest import run_backtest
+from src.backtest import run_backtest                 # still used (powers Anomalies)
 from src.variance import build_report
 from src.anomaly import build_report as build_anomalies
-from src.signals import build as build_signals
 from src.summary import generate_brief
 from src.chat import ask as chat_ask
 from src.llm.client import client as llm
 
-st.set_page_config(page_title="PANW AI FP&A Copilot", layout="wide", page_icon="📊")
+st.set_page_config(page_title="PANW AI FP&A Copilot", layout="wide")
+
+# ---- Brand palette ---------------------------------------------------------
+ORANGE = "#FA582D"   # PANW Outrageous Orange — branding/highlights ONLY
+DARK = "#141414"
+GRAY = "#F5F5F5"
+FAV = "#00CC66"      # favorable (semantic)
+UNFAV = "#D9362B"    # unfavorable (semantic)
+CAUTION = "#FFCB06"  # caution / expected (semantic)
+INFO = "#5B8DEF"     # informational (semantic, non-brand blue)
+
+BRAND_CSS = f"""
+<style>
+  .brandhead {{ background:{ORANGE}; padding:18px 24px; border-radius:10px;
+    margin-bottom:6px; }}
+  .brandhead .t {{ color:#fff; font-size:1.6rem; font-weight:800; letter-spacing:.01em; }}
+  .brandhead .s {{ color:#fff; opacity:.92; font-size:.95rem; }}
+  /* metric cards */
+  div[data-testid="stMetric"] {{ background:{GRAY}; border:1px solid #ECECEC;
+    border-radius:10px; padding:14px 16px; }}
+  div[data-testid="stMetricValue"] {{ color:{DARK}; font-weight:700; }}
+  /* the plain-English bottom line */
+  .bottomline {{ background:{GRAY}; border-left:5px solid {ORANGE}; padding:12px 16px;
+    border-radius:8px; margin:4px 0 14px 0; font-size:1.03rem; color:{DARK}; }}
+  .bottomline .tag {{ color:{ORANGE}; font-weight:800; text-transform:uppercase;
+    font-size:.72rem; letter-spacing:.06em; margin-right:8px; }}
+  /* pipeline flow */
+  .flow {{ display:flex; flex-wrap:wrap; align-items:stretch; gap:6px; margin:6px 0; }}
+  .flow .box {{ flex:1; min-width:120px; background:{GRAY}; border:1px solid #E4E4E4;
+    border-radius:10px; padding:12px; text-align:center; color:{DARK};
+    font-weight:600; font-size:.92rem; }}
+  .flow .box small {{ font-weight:400; color:#5b5b5b; }}
+  .flow .box.powers {{ border:2px solid {ORANGE}; }}
+  .flow .arrow {{ display:flex; align-items:center; color:{ORANGE}; font-weight:800;
+    font-size:1.3rem; }}
+  /* tab labels a touch larger */
+  button[data-baseweb="tab"] p {{ font-size:1.0rem; font-weight:600; }}
+  h2, h3 {{ color:{DARK}; }}
+</style>
+"""
+st.markdown(BRAND_CSS, unsafe_allow_html=True)
 
 
-def md(text: str) -> str:
+# ---- small helpers ---------------------------------------------------------
+def md(text) -> str:
     """Escape $ so Streamlit markdown doesn't render dollar amounts as LaTeX math."""
     return str(text).replace("$", "\\$")
 
 
+def fmt_m(v) -> str:
+    return f"${v:,.0f}M"
+
+
+def fmt_pct(v, signed=False) -> str:
+    return (f"{v:+.1f}%" if signed else f"{v:.1f}%")
+
+
+def bottom_line(html: str):
+    """Render the plain-English 'Bottom line' callout (HTML → $ stays literal)."""
+    st.markdown(f'<div class="bottomline"><span class="tag">Bottom line</span>{html}</div>',
+                unsafe_allow_html=True)
+
+
+def how_to_read(text: str):
+    st.caption(f"*How to read this:* {text}")
+
+
+# Plain-English names for raw metric/column identifiers (used by Anomalies).
+METRIC_NAMES = {
+    "revenue_total": "Total revenue",
+    "revenue_organic": "Organic revenue",
+    "revenue_product": "Product revenue",
+    "revenue_subscription": "Subscription & support revenue",
+    "inorganic_revenue": "Acquisition (inorganic) revenue",
+    "rpo": "Backlog (RPO)",
+    "ngs_arr": "Next-Gen Security ARR",
+    "non_gaap_op_margin": "Operating margin",
+    "segment_reconciliation": "Segment reconciliation",
+    "organic_reconciliation": "Organic/inorganic reconciliation",
+    "xbrl_cross_check": "Independent (XBRL) cross-check",
+}
+
+
+def prettify_metric(m: str) -> str:
+    return METRIC_NAMES.get(m, m.replace("_", " ").capitalize())
+
+
+def brand_layout(fig, height=420, ytitle="", xtitle=""):
+    fig.update_layout(
+        height=height, template="plotly_white",
+        font=dict(family="sans-serif", color=DARK),
+        paper_bgcolor="white", plot_bgcolor="white",
+        margin=dict(l=10, r=10, t=10, b=10),
+        yaxis_title=ytitle, xaxis_title=xtitle,
+        hovermode="x unified",
+        legend=dict(orientation="h", y=1.12, x=0),
+    )
+    return fig
+
+
+# ---- cached data access ----------------------------------------------------
 @st.cache_data
 def get_data():
     df = pd.read_csv(config.FINANCIALS_CSV, parse_dates=["period_end_date"])
@@ -53,25 +150,13 @@ def get_backtest_report():
 
 
 @st.cache_data
-def get_backtest():
-    rep = get_backtest_report()
-    return rep.steps, rep.metrics, rep.calibration, rep.headline
-
-
-@st.cache_data
 def get_variance(quarter):
     return build_report(quarter)
 
 
 @st.cache_data
 def get_anomalies(quarter):
-    # Reuse the cached walk-forward run rather than recomputing it.
     return build_anomalies(quarter, backtest=get_backtest_report())
-
-
-@st.cache_data(show_spinner="Extracting transcript signals…")
-def get_signals():
-    return build_signals()
 
 
 @st.cache_data(show_spinner="Drafting executive brief…")
@@ -79,204 +164,267 @@ def get_brief(quarter):
     return generate_brief(quarter)
 
 
+@st.cache_data
+def get_quality():
+    return pv.quality_stats(get_data())
+
+
 df = get_data()
 errors = load_conformal_errors()
 
-st.title("📊 PANW AI FP&A Copilot")
-st.caption("Driver-based, backtested, probabilistic revenue forecasting on Palo Alto "
-           "Networks public financials — forecast → validate → (variance → anomaly → "
-           "signals → executive summary). Every figure traces to an SEC filing; the LLM "
-           "never invents numbers.")
+# ---- branded header --------------------------------------------------------
+st.markdown(
+    '<div class="brandhead"><div class="t">PANW AI FP&amp;A Copilot</div>'
+    '<div class="s">From SEC filings to a board-ready brief — every figure traced to a '
+    'filing, and an AI that never invents a number.</div></div>',
+    unsafe_allow_html=True)
 
-with st.container(border=True):
-    st.markdown("#### 👤 Who this is for / what it answers")
-    st.markdown(framing.TAGLINE)
+_llm_badge = ("AI assistant: live" if llm.available
+              else "AI assistant: offline (works fully; set a key for live answers)")
+st.caption(_llm_badge)
 
+tab_src, tab_fc, tab_var, tab_anom, tab_sum, tab_chat = st.tabs(
+    ["Source Data", "Forecast", "Variance", "Anomalies", "Exec Summary", "Chat"])
 
-def lens(key):
-    """Render the user-need framing (who · decision · why) for a tab."""
-    st.info(framing.caption(key))
+# Plain-English tooltips reused across tabs
+HELP = {
+    "organic": "Revenue from the existing business — excludes anything gained through an acquisition.",
+    "inorganic": "Revenue that came from an acquisition (here, CyberArk + Chronosphere), not the core business.",
+    "range": "We're about 80% confident the real number lands inside this range.",
+    "guidance": "The revenue range management publicly told investors to expect for the quarter.",
+    "rpo": "Remaining Performance Obligations — signed contracts not yet recognized as revenue; a leading indicator of future sales.",
+    "verified": "Every dollar amount and percentage in the text was automatically checked against the computed data — nothing is made up.",
+    "xbrl": "A second, independent machine-readable feed of the same numbers, straight from the SEC.",
+}
 
+# ============================================================ Source Data tab
+with tab_src:
+    st.subheader("Where every number comes from")
+    bottom_line("Every figure in this app is copied <b>verbatim from an official SEC filing</b> "
+                "and cross-checked against a second, independent source. Nothing is estimated, "
+                "averaged, or filled in.")
 
-tab_fc, tab_bt, tab_var, tab_anom, tab_sig, tab_sum, tab_chat = st.tabs(
-    ["🔮 Forecast", "✅ Backtest & Validation", "📐 Variance & Attribution",
-     "🚨 Anomalies", "🗣️ Signals", "📝 Exec Summary", "💬 Chat"])
+    q = get_quality()
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Quarters of data", q["n_quarters"],
+              help="One row per fiscal quarter, FY2021Q3 → FY2026Q3.")
+    c2.metric("Cross-checked to the dollar", f'{q["n_xbrl_match"]} / {q["n_xbrl_checked"]}',
+              help="Quarters where the press-release total matches the SEC's independent XBRL "
+                   "feed exactly. " + HELP["xbrl"])
+    c3.metric("Segments tie out", f'{q["n_segment"]} / {q["n_segment"]}' if q["segment_ok"] else "FAIL",
+              help="Product + Subscription revenue equals total revenue, every quarter.")
+    c4.metric("Estimated values", "0",
+              help="We never interpolate. If a number wasn't disclosed, the cell stays blank.")
 
-_llm_badge = ("🟢 Claude (live)" if llm.available
-              else "⚪ offline mode — set ANTHROPIC_API_KEY for live Claude")
-st.caption(f"LLM layer: {_llm_badge}")
+    # 1) Pipeline flow
+    st.markdown("##### The pipeline")
+    st.markdown(
+        '<div class="flow">'
+        '<div class="box">Sources<br><small>SEC 8-K releases · SEC XBRL API · transcripts</small></div>'
+        '<div class="arrow">&rarr;</div>'
+        '<div class="box">Extraction<br><small>each figure copied with a quote proving it</small></div>'
+        '<div class="arrow">&rarr;</div>'
+        '<div class="box">Validation<br><small>two sources agree · segments reconcile</small></div>'
+        '<div class="arrow">&rarr;</div>'
+        '<div class="box">Clean dataset<br><small>one tidy, sourced table</small></div>'
+        '<div class="arrow">&rarr;</div>'
+        '<div class="box powers">Powers<br><small>Forecast · Variance · Anomalies · Summary · Chat</small></div>'
+        '</div>', unsafe_allow_html=True)
+    how_to_read("data flows left to right — every number is proven and double-checked "
+                "before it powers anything downstream.")
 
-# ---------------------------------------------------------------- Forecast tab
+    # 2) Provenance — prove any number
+    st.markdown("##### Prove any number")
+    st.caption("Pick a quarter and see, for each metric, the exact wording from the filing that proves it.")
+    pq = st.selectbox("Quarter", df["fiscal_quarter"].tolist()[::-1], index=0, key="prov_q")
+    evidence = pv.load_evidence().get(pq, {})
+    links = pv.source_links()
+    prow = df[df["fiscal_quarter"] == pq].iloc[0]
+
+    def _fmt_val(col, val):
+        if pd.isna(val):
+            return "—"
+        if col == "non_gaap_op_margin":
+            return fmt_pct(val)
+        if "eps" in col:
+            return f"${val:,.2f}"
+        return fmt_m(val)
+
+    prov_rows = []
+    for col, label in pv.DISPLAY_METRICS:
+        if col not in df.columns:
+            continue
+        quote = evidence.get(col, "")
+        prov_rows.append({"Metric": label, "Value": _fmt_val(col, prow[col]),
+                          "Evidence (verbatim from the filing)": quote or "—"})
+    st.dataframe(pd.DataFrame(prov_rows), width="stretch", hide_index=True)
+    if pq in links:
+        st.markdown(f"[View the source 8-K filing for {pq} &rarr;]({links[pq]})")
+
+    # 3) Data-quality: coverage map
+    with st.expander("Show the detail — data coverage & quality"):
+        st.caption("Which metrics were disclosed in which quarter. Blanks are genuine "
+                   "non-disclosures, never estimates.")
+        cov = pv.coverage_matrix(df)
+        fig = go.Figure(go.Heatmap(
+            z=cov.values, x=list(cov.columns), y=list(cov.index),
+            colorscale=[[0, "#E8E8E8"], [1, DARK]], showscale=False, xgap=2, ygap=2,
+            hovertemplate="%{y} · %{x}: %{customdata}<extra></extra>",
+            customdata=[["disclosed" if v else "not disclosed" for v in row] for row in cov.values],
+        ))
+        brand_layout(fig, height=360)
+        st.plotly_chart(fig, width="stretch")
+        how_to_read("dark = the metric was disclosed that quarter; light = not disclosed "
+                    "(e.g. billings stops after FY2024Q1; NGS ARR starts FY2024Q4).")
+
+    # 4) Full dataset preview
+    with st.expander("Show the detail — the full 21-quarter dataset"):
+        cols = ["fiscal_quarter", "period_end_date", "revenue_total", "revenue_product",
+                "revenue_subscription", "revenue_organic", "inorganic_revenue", "rpo",
+                "ngs_arr", "billings", "non_gaap_op_margin", "non_gaap_eps_reported",
+                "guidance_revenue_next_q_low", "guidance_revenue_next_q_high"]
+        st.dataframe(df[[c for c in cols if c in df.columns]], width="stretch",
+                     hide_index=True, height=380)
+
+    # 5) Honesty callouts
+    st.markdown("##### Our honesty rules")
+    st.markdown(
+        "- **No interpolation.** A number we couldn't source is left blank — never guessed.\n"
+        "- **Acquisitions only where disclosed.** Inorganic revenue is recorded only where PANW "
+        "stated a figure — so far one quarter: **FY2026Q3 = \\$388M** (CyberArk + Chronosphere).\n"
+        "- **Stock splits handled.** PANW split its stock twice; per-share earnings are restated "
+        "to today's basis so the history is comparable.")
+
+# ============================================================== Forecast tab
 with tab_fc:
-    st.subheader("Probabilistic organic-revenue forecast")
-    lens("forecast")
-    c1, c2, c3 = st.columns(3)
-    horizon = c1.slider("Forecast horizon (quarters)", 1, 4, config.FORECAST_HORIZON)
-    method = c3.radio("Interval method", ["conformal", "mc"],
-                      index=0 if config.INTERVAL_METHOD == "conformal" else 1,
-                      horizontal=True,
-                      help="Conformal = band width learned from walk-forward "
-                           "residuals (well-calibrated, 86% coverage). MC = model's own "
-                           "variance (overconfident in backtest, 43%).")
-    sigma = c2.slider("Uncertainty scale (Monte Carlo)", 0.5, 2.5,
-                      config.ASSUMPTION_SIGMA_SCALE, 0.1,
-                      disabled=(method == "conformal"),
-                      help="Stress-tests the model's own uncertainty width. Only affects "
-                           "the 'mc' interval — switch the method to 'mc' to see it move "
-                           "the band.")
-    if method == "conformal":
-        c2.caption("↔ applies to the **mc** interval — switch to enable")
+    st.subheader("Revenue forecast")
 
-    config.INTERVAL_METHOD = method  # honor the live toggle
-    res = run_forecast(df=df, horizon=horizon, sigma_scale=sigma,
-                       conformal_errors=errors)
+    # Controls sit above the chart so the forecast reacts in plain sight.
+    c1, c2 = st.columns(2)
+    horizon = c1.slider("Quarters ahead to forecast", 1, 4, config.FORECAST_HORIZON,
+                        help="How many future quarters to project.")
+    method = c2.radio("Range method", ["conformal (recommended)", "model's own"],
+                      horizontal=True,
+                      help="Conformal sets the band from real past errors (honest). "
+                           "The model's own band was over-confident in testing.")
+    config.INTERVAL_METHOD = "conformal" if method.startswith("conformal") else "mc"
+    res = run_forecast(df=df, horizon=horizon, conformal_errors=errors)
+    nq = res.future_quarters[0]
+    pt, lo, hi = res.total_point[0], res.total_low[0], res.total_high[0]
+
+    bottom_line(f"For <b>{nq}</b> we expect organic revenue of about <b>{fmt_m(pt)}</b>, "
+                f"most likely between <b>{fmt_m(lo)}</b> and <b>{fmt_m(hi)}</b>. "
+                f"We show a range, not a single guess, because planning is about the downside.")
+
+    k1, k2, k3 = st.columns(3)
+    k1.metric("Next quarter", nq, help="The next quarter we forecast.")
+    k2.metric("Most likely revenue", fmt_m(pt),
+              help="Organic revenue — " + HELP["organic"])
+    k3.metric("80% range ($M)", f"{lo:,.0f} – {hi:,.0f}", help=HELP["range"])
 
     hist = df[df["inorganic_revenue"] == 0]
+    fq = res.future_quarters
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=hist["fiscal_quarter"], y=hist["revenue_total"],
-                             mode="lines+markers", name="Actual (organic)",
-                             line=dict(color="#1f77b4")))
-    fq = res.future_quarters
-    fig.add_trace(go.Scatter(x=fq, y=res.total_high, mode="lines",
-                             line=dict(width=0), showlegend=False,
-                             hoverinfo="skip"))
+                             mode="lines+markers", name="Actual (history)",
+                             line=dict(color=DARK)))
+    fig.add_trace(go.Scatter(x=fq, y=res.total_high, mode="lines", line=dict(width=0),
+                             showlegend=False, hoverinfo="skip"))
     fig.add_trace(go.Scatter(x=fq, y=res.total_low, mode="lines", fill="tonexty",
-                             fillcolor="rgba(255,127,14,0.2)", line=dict(width=0),
-                             name=f"{config.PREDICTION_INTERVAL:.0%} band ({res.interval_method})"))
+                             fillcolor="rgba(250,88,45,0.15)", line=dict(width=0),
+                             name="80% range"))
     fig.add_trace(go.Scatter(x=fq, y=res.total_point, mode="lines+markers",
-                             name="Forecast", line=dict(color="#ff7f0e", dash="dash")))
-    fig.update_layout(height=460, yaxis_title="Total revenue ($M)",
-                      xaxis_title="Fiscal quarter", hovermode="x unified",
-                      legend=dict(orientation="h", y=1.1))
+                             name="Forecast", line=dict(color=ORANGE, dash="dash")))
+    brand_layout(fig, height=440, ytitle="Revenue ($M)", xtitle="Fiscal quarter")
     st.plotly_chart(fig, width="stretch")
+    how_to_read("the dark line is actual history; the dashed orange line is our best estimate; "
+                "the shaded band is the range we're ~80% confident in.")
 
-    st.markdown(f"**Training cutoff:** {res.training_cutoff} (organic-only) · "
-                f"**Models:** ETS (mul. seasonal) per segment, summed · "
-                f"**Interval:** {res.interval_method}")
-    fc_tbl = res.to_frame()
-    st.dataframe(fc_tbl, width="stretch", hide_index=True)
+    with st.expander("How this works"):
+        st.markdown(
+            "- We forecast each revenue stream with **ETS** — a standard, transparent time-series "
+            "method that tracks the trend and the repeating yearly pattern (PANW's big Q4). No "
+            "black-box AI: with only ~20 quarters of data, a simple, explainable model is the honest choice.\n"
+            "- The range width is set by **how wrong the model actually was on past quarters** (a "
+            "technique called *conformal*), not by the model's own optimism. We tested it on history "
+            "and the 80% range contained the truth about **86%** of the time — i.e. it's honest.\n"
+            "- We forecast the **organic** business and add acquisitions separately, so a one-time "
+            "deal can't masquerade as underlying momentum.")
+        st.dataframe(res.to_frame(), width="stretch", hide_index=True)
 
-    held = df[df["inorganic_revenue"] > 0]
-    if not held.empty and res.future_quarters[0] == held["fiscal_quarter"].iloc[0]:
-        a = held["revenue_organic"].iloc[0]
-        pt, lo, hi = res.total_point[0], res.total_low[0], res.total_high[0]
-        inside = lo <= a <= hi
-        st.info(f"**Out-of-sample check — {held['fiscal_quarter'].iloc[0]} "
-                f"(held out, acquisition-contaminated):** forecast organic "
-                f"**{pt:,.0f}**, 80% band [{lo:,.0f}, {hi:,.0f}], actual organic "
-                f"(total − \\${held['inorganic_revenue'].iloc[0]:,.0f}M CyberArk/"
-                f"Chronosphere) = **{a:,.0f}** → {'inside' if inside else 'just outside'} "
-                f"band, error {(pt-a)/a*100:+.1f}%.")
+        held = df[df["inorganic_revenue"] > 0]
+        if not held.empty and res.future_quarters[0] == held["fiscal_quarter"].iloc[0]:
+            a = held["revenue_organic"].iloc[0]
+            inside = lo <= a <= hi
+            st.info(md(f"**Out-of-sample check — {held['fiscal_quarter'].iloc[0]}:** we forecast "
+                       f"organic {fmt_m(pt)} (range {fmt_m(lo)}–{fmt_m(hi)}); the actual organic "
+                       f"number was {fmt_m(a)} → {'inside' if inside else 'just outside'} the band "
+                       f"({(pt-a)/a*100:+.1f}%). A genuine test: the model never saw this quarter."))
 
-# --------------------------------------------------------------- Backtest tab
-with tab_bt:
-    steps, metrics, calib, headline = get_backtest()
-    st.subheader("Walk-forward validation (no leakage)")
-    lens("backtest")
-    st.success(headline)
-
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Model MAPE", f"{metrics['model']['MAPE']:.2f}%")
-    m2.metric("Naive (drift) MAPE", f"{metrics['naive']['MAPE']:.2f}%",
-              delta=f"{metrics['model']['MAPE']-metrics['naive']['MAPE']:.2f} pp",
-              delta_color="inverse")
-    m3.metric("Seasonal-naive MAPE", f"{metrics['seasonal_naive']['MAPE']:.2f}%")
-    m4.metric("Mgmt guidance MAPE", f"{metrics['guidance']['MAPE']:.2f}%")
-
-    st.markdown("##### Calibration of the 80% interval")
-    cc1, cc2 = st.columns(2)
-    cc1.metric("Monte Carlo coverage", f"{calib['mc_coverage']:.0%}",
-               help=calib["mc_verdict"])
-    cc2.metric("Conformal coverage", f"{calib['conformal_coverage']:.0%}",
-               delta=calib["conformal_verdict"], delta_color="off")
-    st.caption(f"Nominal target: {calib['nominal']:.0%} · n = {calib['n']} "
-               f"walk-forward quarters. The model's own Monte Carlo variance is "
-               f"overconfident; conformal intervals (width learned from "
-               f"out-of-sample residuals) restore calibration.")
-
-    # Actual vs model with conformal band over the backtest window.
-    fig2 = go.Figure()
-    fig2.add_trace(go.Scatter(x=steps["predict_quarter"], y=steps["conf_high"],
-                              line=dict(width=0), showlegend=False, hoverinfo="skip"))
-    fig2.add_trace(go.Scatter(x=steps["predict_quarter"], y=steps["conf_low"],
-                              fill="tonexty", fillcolor="rgba(44,160,44,0.15)",
-                              line=dict(width=0), name="Conformal 80% band"))
-    fig2.add_trace(go.Scatter(x=steps["predict_quarter"], y=steps["model"],
-                              mode="lines+markers", name="Model forecast",
-                              line=dict(color="#ff7f0e", dash="dash")))
-    fig2.add_trace(go.Scatter(x=steps["predict_quarter"], y=steps["actual"],
-                              mode="lines+markers", name="Actual",
-                              line=dict(color="#1f77b4")))
-    fig2.update_layout(height=420, yaxis_title="Organic revenue ($M)",
-                       xaxis_title="Predicted quarter", hovermode="x unified",
-                       legend=dict(orientation="h", y=1.1))
-    st.plotly_chart(fig2, width="stretch")
-    st.dataframe(steps, width="stretch", hide_index=True)
-
-# --------------------------------------------------------------- Variance tab
+# ============================================================== Variance tab
 with tab_var:
-    st.subheader("Automated variance analysis & attribution")
-    lens("variance")
+    st.subheader("Why results differed from plan")
     quarters = df[df["inorganic_revenue"] > 0]["fiscal_quarter"].tolist() + \
         df["fiscal_quarter"].tolist()[-6:]
-    quarters = list(dict.fromkeys(quarters))  # de-dupe, keep order
-    q = st.selectbox("Quarter (actuals)", quarters, index=0)
-    rep = get_variance(q)
+    quarters = list(dict.fromkeys(quarters))
+    qv = st.selectbox("Quarter", quarters, index=0, key="var_q")
+    rep = get_variance(qv)
     s = rep.summary
 
+    inorg_share = s.get("inorganic_share_of_beat_%")
+    share_txt = (f" — but <b>{fmt_m(s['inorganic'])}</b> of that came from acquisitions, so the "
+                 f"core business beat our forecast by only about <b>{fmt_m(s['organic_beat_$'])}</b>"
+                 ) if s["inorganic"] else ""
+    bottom_line(f"{qv} revenue of <b>{fmt_m(s['actual_total'])}</b> came in "
+                f"<b>{fmt_m(s['vs_guidance_$'])}</b> ({fmt_pct(s['vs_guidance_%'], signed=True)}) "
+                f"vs guidance{share_txt}.")
+
     k1, k2, k3, k4 = st.columns(4)
-    k1.metric("Actual total", f"${s['actual_total']:,.0f}M")
-    k2.metric("vs guidance", f"${s['vs_guidance_$']:+,.0f}M",
-              delta=f"{s['vs_guidance_%']:+.1f}% · {s['vs_guidance_flag']}")
-    k3.metric("Organic beat vs forecast", f"${s['organic_beat_$']:+,.0f}M")
-    k4.metric("Inorganic (M&A)", f"${s['inorganic']:,.0f}M",
-              delta=(f"{s['inorganic_share_of_beat_%']:.0f}% of beat vs forecast"
-                     if s.get("inorganic_share_of_beat_%") is not None else None),
-              delta_color="off")
+    k1.metric("Actual revenue", fmt_m(s["actual_total"]))
+    k2.metric("vs guidance", fmt_m(s["vs_guidance_$"]),
+              delta=f"{fmt_pct(s['vs_guidance_%'], signed=True)} · {s['vs_guidance_flag']}",
+              help=HELP["guidance"])
+    k3.metric("Core business beat forecast", fmt_m(s["organic_beat_$"]),
+              help="How much the " + HELP["organic"].lower())
+    k4.metric("From acquisitions", fmt_m(s["inorganic"]),
+              delta=(f"{inorg_share:.0f}% of the beat" if inorg_share is not None else None),
+              delta_color="off", help=HELP["inorganic"])
 
-    # Waterfall bridge: forecast (organic) -> +organic beat -> +inorganic -> actual
     b = rep.bridge
-    measure = ["absolute", "relative", "relative", "total"][: len(b)]
-    fig3 = go.Figure(go.Waterfall(
-        orientation="v", measure=measure,
+    fig = go.Figure(go.Waterfall(
+        orientation="v", measure=["absolute", "relative", "relative", "total"][:len(b)],
         x=b["step"], y=b["amount"],
-        text=[f"${v:,.0f}M" for v in b["amount"]], textposition="outside",
+        text=[fmt_m(v) for v in b["amount"]], textposition="outside",
         connector=dict(line=dict(color="rgba(120,120,120,0.5)")),
-        decreasing=dict(marker=dict(color="#d62728")),
-        increasing=dict(marker=dict(color="#2ca02c")),
-        totals=dict(marker=dict(color="#1f77b4")),
+        increasing=dict(marker=dict(color=FAV)),
+        decreasing=dict(marker=dict(color=UNFAV)),
+        totals=dict(marker=dict(color=DARK)),
     ))
-    fig3.update_layout(height=440, yaxis_title="Revenue ($M)",
-                       title=f"Variance bridge — {q}: forecast → actual")
-    st.plotly_chart(fig3, width="stretch")
+    brand_layout(fig, height=420, ytitle="Revenue ($M)")
+    st.plotly_chart(fig, width="stretch")
+    how_to_read("start at our forecast on the left; each step adds or subtracts until you reach "
+                "the actual reported revenue on the right. Green = added, red = shortfall.")
 
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown("**Variance vs management guidance**")
-        st.dataframe(rep.vs_guidance, width="stretch", hide_index=True)
-        st.markdown("**Segment attribution (vs forecast)**")
-        st.dataframe(rep.segment_attribution, width="stretch", hide_index=True)
-    with c2:
-        st.markdown("**Driver attribution — leading indicators (organic vs inorganic)**")
-        st.dataframe(rep.driver_attribution, width="stretch", hide_index=True)
-        st.markdown("**Variance vs forecast**")
-        st.dataframe(rep.vs_forecast, width="stretch", hide_index=True)
+    with st.expander("Show the detail — full attribution"):
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("**vs management guidance**")
+            st.dataframe(rep.vs_guidance, width="stretch", hide_index=True)
+            st.markdown("**By segment (vs forecast)**")
+            st.dataframe(rep.segment_attribution, width="stretch", hide_index=True)
+        with c2:
+            st.markdown("**Leading indicators (organic vs acquired)**")
+            st.dataframe(rep.driver_attribution, width="stretch", hide_index=True)
+            st.markdown("**vs our forecast**")
+            st.dataframe(rep.vs_forecast, width="stretch", hide_index=True)
+        st.markdown("**Notes**")
+        for n in rep.notes:
+            st.markdown(f"- {md(n)}")
 
-    st.markdown("**Notes (timing vs permanent, caveats)**")
-    for n in rep.notes:
-        st.markdown(f"- {md(n)}")
-
-# -------------------------------------------------------------- Anomalies tab
+# ============================================================== Anomalies tab
 with tab_anom:
-    st.subheader("Discrepancy & anomaly detection (Stage 3.5)")
-    lens("anomaly")
-    st.caption("Interpretable, rule-based flags reusing the data + forecast outputs — "
-               "accounting tie-outs, trend/seasonality band breaks (robust z), and "
-               "actuals outside the calibrated forecast band. Each flag is cross-checked "
-               "against known disclosures and labeled **expected (explained)** vs "
-               "**unexplained (investigate)** — the judgment a human analyst adds.")
-    aq = st.selectbox("Focus quarter (forecast-relative check)",
-                      df[df["inorganic_revenue"] > 0]["fiscal_quarter"].tolist()
+    st.subheader("What's worth a closer look")
+    aq = st.selectbox("Quarter to focus on", df[df["inorganic_revenue"] > 0]["fiscal_quarter"].tolist()
                       + df["fiscal_quarter"].tolist()[-6:], key="anom_q")
     aq = list(dict.fromkeys([aq]))[0]
     arep = get_anomalies(aq)
@@ -285,92 +433,93 @@ with tab_anom:
     expl = [a for a in items if a.status == "explained"]
     crit = [a for a in unexpl if a.severity == "critical"]
 
-    a1, a2, a3 = st.columns(3)
-    a1.metric("Flags", len(items))
-    a2.metric("Unexplained (investigate)", len(unexpl),
-              delta=f"{len(crit)} critical" if crit else "none critical",
-              delta_color="inverse" if crit else "off")
-    a3.metric("Expected (explained)", len(expl), delta_color="off")
+    bottom_line(f"We scanned all {len(arep.quarters_scanned)} quarters. <b>{len(items)}</b> items "
+                f"look unusual — <b>{len(expl)}</b> we can already explain (e.g. the CyberArk "
+                f"acquisition), and <b>{len(unexpl)}</b> are worth a human look.")
 
-    _emoji = {"critical": "🔴", "warning": "🟠", "info": "🔵"}
+    k1, k2, k3 = st.columns(3)
+    k1.metric("Items flagged", len(items),
+              help="Anything that broke a data tie-out, jumped outside its normal range, or "
+                   "landed outside the trustworthy forecast band.")
+    k2.metric("To investigate", len(unexpl),
+              delta=f"{len(crit)} high-priority" if crit else "none high-priority",
+              delta_color="inverse" if crit else "off",
+              help="Unusual AND no known cause — these deserve attention.")
+    k3.metric("Already explained", len(expl), delta_color="off",
+              help="Unusual but accounted for by a disclosure (e.g. an acquisition).")
 
-    def _render(anom_list, header, empty_msg):
+    def _render(lst, header, empty):
         st.markdown(f"##### {header}")
-        if not anom_list:
-            st.caption(empty_msg)
+        if not lst:
+            st.caption(empty)
             return
-        for a in anom_list:
-            label = (f"{_emoji[a.severity]} **{a.quarter} · {a.metric}** "
-                     f"({a.detector}, {a.severity})")
-            with st.expander(label, expanded=(a.severity == "critical")):
+        for a in lst:
+            with st.expander(f"{a.quarter} · {prettify_metric(a.metric)}",
+                             expanded=(a.severity == "critical")):
                 st.markdown(md(a.why))
                 if a.explanation:
                     st.success(md(f"Expected — {a.explanation}"))
+                elif a.severity == "critical":
+                    st.error("High priority — no known cause; investigate.")
+                elif a.severity == "warning":
+                    st.warning("Worth a look — outside the normal range.")
                 else:
-                    st.warning("Unexplained — worth a human look.")
+                    st.info("Minor — slightly outside the normal range.")
 
-    _render(unexpl, "🔴 Unexplained — investigate",
-            "Nothing unexplained — every flagged item is accounted for.")
-    _render(expl, "🟢 Expected — explained by disclosure",
-            "No disclosure-explained anomalies this scan.")
+    _render(unexpl, "To investigate", "Nothing unexplained — every flag is accounted for.")
+    _render(expl, "Already explained", "No disclosure-explained items this scan.")
 
-    st.markdown("##### All flags")
-    st.dataframe(arep.to_frame(), width="stretch", hide_index=True)
-    st.caption(" · ".join(md(n) for n in arep.notes))
+    with st.expander("How this works"):
+        st.markdown(
+            "- **Data tie-outs:** do the segments still add up to the total? does the second "
+            "source still agree? (catches a mistyped number).\n"
+            "- **Outside its normal range:** we use a *robust* statistical test — it measures how "
+            "far a value sits from its typical level using the **median** (so one extreme value "
+            "can't hide itself), and compares year-over-year to ignore normal seasonality.\n"
+            "- **Outside the forecast band:** an actual that lands beyond the trustworthy "
+            "(calibrated) forecast range.\n"
+            "- Then we **label each flag**: *expected* if a disclosure explains it (like the "
+            "acquisition), or *investigate* if not. That judgment is the point — a CFO wants the "
+            "one alarm with a real cause, not fifty.")
+        st.dataframe(arep.to_frame(), width="stretch", hide_index=True)
 
-# ---------------------------------------------------------------- Signals tab
-with tab_sig:
-    st.subheader("Transcript signal layer (Stage 4)")
-    lens("signals")
-    sig = get_signals()
-    src = sig["source"].iloc[0] if not sig.empty else "n/a"
-    st.caption(f"Signal source: **{src}** · sentiment / guidance tone / topic emphasis "
-               "extracted from management commentary, joinable to financials by quarter.")
-    st.dataframe(sig.drop(columns=["key_quote"]), width="stretch", hide_index=True)
-
-    # Does guidance tone precede the next quarter's revenue surprise?
-    tone_num = {"raising": 1, "holding": 0, "lowering": -1}
-    sig["_tone"] = sig["guidance_tone"].map(tone_num)
-    sig["_next_surprise"] = sig["revenue_surprise_pct"].shift(-1)
-    plot = sig.dropna(subset=["_tone", "_next_surprise"])
-    if not plot.empty:
-        fig = go.Figure(go.Scatter(
-            x=plot["_tone"], y=plot["_next_surprise"], mode="markers+text",
-            text=plot["fiscal_quarter"], textposition="top center",
-            marker=dict(size=10, color="#9467bd")))
-        corr = plot["_tone"].corr(plot["_next_surprise"])
-        fig.update_layout(height=380, xaxis_title="Guidance tone (-1 lower / 0 hold / +1 raise)",
-                          yaxis_title="NEXT-quarter revenue surprise (%)",
-                          title=f"Signal vs subsequent surprise (corr = {corr:+.2f})")
-        st.plotly_chart(fig, width="stretch")
-
-# ------------------------------------------------------------ Exec Summary tab
+# ============================================================ Exec Summary tab
 with tab_sum:
-    st.subheader("LLM executive summary (Stage 5)")
-    lens("summary")
-    q = st.selectbox("Quarter", df[df["inorganic_revenue"] > 0]["fiscal_quarter"].tolist()
-                     + df["fiscal_quarter"].tolist()[-4:], key="sum_q")
-    q = list(dict.fromkeys([q]))[0]
-    brief = get_brief(q)
-    badge = "✅ all figures verified against computed data" if brief.verified else \
-        f"❌ {len(brief.violations)} unverifiable figure(s): {[v.raw for v in brief.violations]}"
-    (st.success if brief.verified else st.error)(
-        md(f"Number-verification harness: {badge}  ·  source: {brief.source}"))
+    st.subheader("The board-ready brief")
+    bottom_line("An AI writes the one-page summary from the numbers above — and <b>every figure "
+                "is automatically checked</b> against the computed data, so nothing is invented.")
+    qs = st.selectbox("Quarter", df[df["inorganic_revenue"] > 0]["fiscal_quarter"].tolist()
+                      + df["fiscal_quarter"].tolist()[-4:], key="sum_q")
+    qs = list(dict.fromkeys([qs]))[0]
+    brief = get_brief(qs)
+    if brief.verified:
+        st.success("All figures verified against the computed data.")
+    else:
+        st.error(md(f"{len(brief.violations)} unverifiable figure(s): "
+                    f"{[v.raw for v in brief.violations]}"))
+    st.caption(HELP["verified"] + f"  ·  Writer: {brief.source}")
+
     display = md(brief.text)
-    if display.startswith("# "):       # demote the brief's H1 (tab already has a header)
+    if display.startswith("# "):
         display = "### " + display[2:]
     st.markdown(display)
-    st.download_button("⬇️ Download brief (Markdown)", brief.text,  # raw $ in the .md
-                       file_name=f"PANW_exec_brief_{q}.md", mime="text/markdown")
+    st.download_button("Download the brief (Markdown)", brief.text,
+                       file_name=f"PANW_exec_brief_{qs}.md", mime="text/markdown")
 
-# -------------------------------------------------------------------- Chat tab
+    with st.expander("How this works"):
+        st.markdown(
+            "- The AI is handed a **FACTS block** — the only numbers it's allowed to use — and "
+            "told to write prose, never to calculate.\n"
+            "- A separate checker then reads the draft, pulls out every dollar amount and "
+            "percentage, and matches each against the computed values. Any number that doesn't "
+            "match is **rejected and the draft is rewritten**. That gate is what makes an AI safe "
+            "to point at financial numbers.")
+
+# =================================================================== Chat tab
 with tab_chat:
-    st.subheader("Chat with your financials")
-    lens("chat")
-    st.caption("Ask in plain English. Answers come ONLY from the computed pipeline — "
-               "financials, forecast, variance, and the anomaly scan — every figure "
-               "quarter-cited, source-tagged, and routed through the number-verification "
-               "harness. Try the examples, or ask your own.")
+    st.subheader("Ask your financials")
+    bottom_line("Ask anything in plain English. Answers come <b>only from the computed numbers</b>, "
+                "with the quarter cited and every figure verified.")
     examples = ["What drove the FY2026Q3 revenue beat?",
                 "Is anything anomalous this quarter?",
                 "What's the revenue forecast for next quarter?",
@@ -378,10 +527,12 @@ with tab_chat:
     cols = st.columns(len(examples))
     preset = next((examples[i] for i, c in enumerate(cols)
                    if c.button(examples[i], key=f"ex{i}")), None)
-    question = st.text_input("Ask a question", value=preset or "", key="chat_q")
+    question = st.text_input("Your question", value=preset or "", key="chat_q",
+                             placeholder="e.g. How is the core business doing?")
     if question:
         ans = chat_ask(question)
-        (st.success if ans.verified else st.warning)(
-            f"{'✅ verified against computed data' if ans.verified else '⚠️ contains unverifiable figures'} "
-            f"· source: {ans.source}")
+        if ans.verified:
+            st.success("Verified against the computed data.")
+        else:
+            st.warning("This answer contains figures we couldn't verify — treat with caution.")
         st.markdown(md(ans.text))
