@@ -23,6 +23,7 @@ import pandas as pd
 
 from src import config
 from src.forecast import run_forecast, load_conformal_errors
+from src.fmt import fmt_money, fmt_pct
 
 
 def _pct1(x: float) -> float:
@@ -192,18 +193,17 @@ def plain_bottom_line(rep: "VarianceReport") -> str:
     s = rep.summary
     beat = s["actual_total"] - s["forecast_organic"]          # total vs our forecast
     verb = "beat" if beat >= 0 else "missed"
-    ob = s["organic_beat_$"]
-    ob_str = f"{'+' if ob >= 0 else '-'}${abs(ob):,.0f}M"   # e.g. +$50M (verifier-parseable)
-    out = f"Revenue {verb} our forecast by ${abs(beat):,.0f}M"
+    ob_str = fmt_money(s["organic_beat_$"])                 # e.g. $50M (verifier-parseable)
+    out = f"Revenue {verb} our forecast by {fmt_money(abs(beat))}"
     share = s.get("inorganic_share_of_beat_%")
     if s["inorganic"] and share is not None and beat:
-        out += (f", but ~{share:.0f}% of that was the CyberArk acquisition — organically "
+        out += (f", but {fmt_pct(share)} of that was the CyberArk acquisition — organically "
                 f"we were on target ({ob_str} vs forecast)")
     else:
         out += f" — all organic ({ob_str} vs forecast)"
     g = s["vs_guidance_$"]
-    out += (f". Versus guidance, ${abs(g):,.0f}M {'ahead' if g >= 0 else 'behind'} "
-            f"({s['vs_guidance_%']:+.1f}%).")
+    out += (f". Versus guidance, {fmt_money(abs(g))} {'ahead' if g >= 0 else 'behind'} "
+            f"({fmt_pct(s['vs_guidance_%'], signed=True)}).")
     return out
 
 

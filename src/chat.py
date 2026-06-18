@@ -22,6 +22,7 @@ from src import config
 from src.llm.client import client
 from src import verify
 from src.forecast import load
+from src.fmt import fmt_money, fmt_pct
 
 
 @dataclass
@@ -44,15 +45,15 @@ def _latest_inorganic_quarter(df: pd.DataFrame) -> str:
 def _variance_summary_line(quarter: str) -> str:
     from src.variance import build_report
     s = build_report(quarter).summary
-    share = (f" Acquisitions account for {s['inorganic_share_of_beat_%']:.0f}% of the "
+    share = (f" Acquisitions account for {fmt_pct(s['inorganic_share_of_beat_%'])} of the "
              f"beat versus forecast."
              if s.get("inorganic_share_of_beat_%") is not None else "")
-    return (f"{quarter}: total revenue ${s['actual_total']:,.0f}M = organic "
-            f"${s['actual_organic']:,.0f}M + inorganic ${s['inorganic']:,.0f}M "
-            f"(CyberArk + Chronosphere). Organic beat our ${s['forecast_organic']:,.0f}M "
-            f"forecast by ${s['organic_beat_$']:+,.0f}M; vs guidance midpoint "
-            f"${s['guidance_midpoint']:,.0f}M the result was ${s['vs_guidance_$']:+,.0f}M "
-            f"({s['vs_guidance_%']:+.1f}%, {s['vs_guidance_flag']}).{share}")
+    return (f"{quarter}: total revenue {fmt_money(s['actual_total'])} = organic "
+            f"{fmt_money(s['actual_organic'])} + inorganic {fmt_money(s['inorganic'])} "
+            f"(CyberArk + Chronosphere). Organic beat our {fmt_money(s['forecast_organic'])} "
+            f"forecast by {fmt_money(s['organic_beat_$'])}; vs guidance midpoint "
+            f"{fmt_money(s['guidance_midpoint'])} the result was {fmt_money(s['vs_guidance_$'])} "
+            f"({fmt_pct(s['vs_guidance_%'], signed=True)}, {s['vs_guidance_flag']}).{share}")
 
 
 def _anomaly_lines(quarter: str) -> tuple[str, list]:
@@ -76,8 +77,9 @@ def dataset_context() -> str:
     parts = [
         "PANW quarterly financials (all $ in millions; FY ends Jul 31):",
         df[cols].to_string(index=False),
-        "\nNotes: revenue_organic excludes acquisition revenue; FY2026Q3 inorganic "
-        "$388M = CyberArk + Chronosphere (also $1,800M of RPO and $1,600M of NGS ARR). "
+        f"\nNotes: revenue_organic excludes acquisition revenue; FY2026Q3 inorganic "
+        f"{fmt_money(388)} = CyberArk + Chronosphere (also {fmt_money(1800)} of RPO and "
+        f"{fmt_money(1600)} of NGS ARR). "
         "billings discontinued after FY2024Q1; NGS ARR first disclosed FY2024Q4.",
         f"\nVariance read — {_variance_summary_line(fq)}",
     ]
@@ -133,32 +135,32 @@ def _offline_answer(question: str) -> str:
         fc = run_forecast(df=df, conformal_errors=load_conformal_errors())
         i = 1 if len(fc.future_quarters) > 1 else 0
         return (f"The backtested model forecasts {fc.future_quarters[i]} organic revenue of "
-                f"${fc.total_point[i]:,.0f}M (80% interval ${fc.total_low[i]:,.0f}–"
-                f"${fc.total_high[i]:,.0f}M) (source: forecast). The range matters more than "
+                f"{fmt_money(fc.total_point[i])} (80% interval {fmt_money(fc.total_low[i])}–"
+                f"{fmt_money(fc.total_high[i])}) (source: forecast). The range matters more than "
                 f"the point — plan around the downside. {_OFFLINE}")
 
     if kw("drove", "beat", "variance", "vs guidance", "vs forecast", "why"):
         return _variance_summary_line(fq) + f" (source: variance bridge) {_OFFLINE}"
 
     if kw("inorganic", "cyberark", "chronosphere", "acquisition", "m&a"):
-        return (f"In {fq}, ${last['inorganic_revenue']:,.0f}M of total revenue "
-                f"(${last['revenue_total']:,.0f}M) was inorganic — the CyberArk and "
+        return (f"In {fq}, {fmt_money(last['inorganic_revenue'])} of total revenue "
+                f"({fmt_money(last['revenue_total'])}) was inorganic — the CyberArk and "
                 f"Chronosphere acquisitions; organic revenue was "
-                f"${last['revenue_organic']:,.0f}M (source: financials). {_OFFLINE}")
+                f"{fmt_money(last['revenue_organic'])} (source: financials). {_OFFLINE}")
 
     if kw("rpo", "backlog"):
-        return (f"{fq} RPO (backlog) was ${last['rpo']:,.0f}M, of which $1,800M is acquired "
-                f"(CyberArk + Chronosphere) (source: financials / variance). {_OFFLINE}")
+        return (f"{fq} RPO (backlog) was {fmt_money(last['rpo'])}, of which {fmt_money(1800)} is "
+                f"acquired (CyberArk + Chronosphere) (source: financials / variance). {_OFFLINE}")
 
     if kw("margin", "profit"):
         if pd.notna(last["non_gaap_op_margin"]):
             return (f"{last['fiscal_quarter']} non-GAAP operating margin was "
-                    f"{last['non_gaap_op_margin']:.1f}% (source: financials). {_OFFLINE}")
+                    f"{fmt_pct(last['non_gaap_op_margin'])} (source: financials). {_OFFLINE}")
 
     if kw("product", "subscription", "segment", "mix"):
         return (f"{last['fiscal_quarter']} revenue split: product "
-                f"${last['revenue_product']:,.0f}M and subscription & support "
-                f"${last['revenue_subscription']:,.0f}M (source: financials). {_OFFLINE}")
+                f"{fmt_money(last['revenue_product'])} and subscription & support "
+                f"{fmt_money(last['revenue_subscription'])} (source: financials). {_OFFLINE}")
 
     if kw("sentiment", "tone", "management", "confiden"):
         if config.SIGNALS_CSV.exists():
@@ -171,7 +173,7 @@ def _offline_answer(question: str) -> str:
                         f"signals). {_OFFLINE}")
 
     return (f"Latest quarter {last['fiscal_quarter']}: total revenue "
-            f"${last['revenue_total']:,.0f}M (organic ${last['revenue_organic']:,.0f}M) "
+            f"{fmt_money(last['revenue_total'])} (organic {fmt_money(last['revenue_organic'])}) "
             f"(source: financials). Ask me about the forecast, what drove the beat, "
             f"anything anomalous, RPO, margin, segments, or management tone. {_OFFLINE}")
 

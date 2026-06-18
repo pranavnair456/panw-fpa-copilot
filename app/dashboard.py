@@ -36,6 +36,7 @@ from src.anomaly import build_report as build_anomalies
 from src.summary import generate_brief
 from src.chat import ask as chat_ask
 from src.llm.client import client as llm
+from src.fmt import fmt_money, fmt_pct, money_cell, col_scale, fmt_eps
 
 st.set_page_config(page_title="PANW AI FP&A Copilot", layout="wide")
 
@@ -85,14 +86,6 @@ st.markdown(BRAND_CSS, unsafe_allow_html=True)
 def md(text) -> str:
     """Escape $ so Streamlit markdown doesn't render dollar amounts as LaTeX math."""
     return str(text).replace("$", "\\$")
-
-
-def fmt_m(v) -> str:
-    return f"${v:,.0f}M"
-
-
-def fmt_pct(v, signed=False) -> str:
-    return (f"{v:+.1f}%" if signed else f"{v:.1f}%")
 
 
 def bottom_line(html: str):
@@ -159,39 +152,47 @@ def relabel_lines(df_in):
 
 def tint_variance(df_pretty):
     """Tint the Variance / Variance % cells green (favorable) or red (unfavorable)
-    by the row's Status, so good-vs-bad reads at a glance."""
+    by the row's Status, so good-vs-bad reads at a glance. Matches columns by the
+    'Variance' prefix because money headers carry a unit suffix (e.g. 'Variance ($M)')."""
     cols = list(df_pretty.columns)
 
     def _row(r):
         c = FAV if r.get("Status") == "Favorable" else (
             UNFAV if r.get("Status") == "Unfavorable" else "")
-        return [f"color:{c}; font-weight:600" if (col in ("Variance", "Variance %") and c)
+        return [f"color:{c}; font-weight:600" if (col.startswith("Variance") and c)
                 else "" for col in cols]
     return df_pretty.style.apply(_row, axis=1)
 
 
-# Whole $M for money columns; one decimal for percents. No six-decimal floats shown to users.
-_NUM_FMT = {
-    "Actual": "{:,.0f}", "Plan": "{:,.0f}", "Variance": "{:,.0f}", "Variance %": "{:.1f}",
-    "Prior": "{:,.0f}", "Current": "{:,.0f}", "Change": "{:,.0f}", "Change %": "{:.1f}",
-    "From acquisition": "{:,.0f}", "Organic": "{:,.0f}",
-    "Acquisition %": "{:.1f}", "Organic %": "{:.1f}",
-}
-
-
-def fmt_numbers(obj):
-    """Apply whole-$M / one-decimal-% formatting to a DataFrame or Styler."""
-    styler = obj.style if isinstance(obj, pd.DataFrame) else obj
-    fmt = {c: f for c, f in _NUM_FMT.items() if c in styler.data.columns}
-    return styler.format(fmt)
+def money_table(df, money_cols, pct_cols, tint=False):
+    """Render a detail table to the app standard: drop the redundant Unit column,
+    auto-scale each money COLUMN to $B/$M by its typical magnitude (stated in the
+    header, e.g. 'Actual ($B)'), finance-parenthesize negatives, one-decimal
+    percents. Returns a Styler ready for st.dataframe."""
+    df = pretty_table(relabel_lines(df))
+    df = df.drop(columns=[c for c in ("Unit",) if c in df.columns])
+    rename, fmts = {}, {}
+    for c in list(df.columns):
+        if c in money_cols:
+            sc = col_scale(df[c])
+            rename[c] = f"{c} ({'$B' if sc == 'B' else '$M'})"
+            fmts[rename[c]] = (lambda s: lambda v: money_cell(v, s))(sc)
+        elif c in pct_cols:
+            # Header carries the '%'; cell is a bare one-decimal number (no double %).
+            fmts[c] = lambda v: "—" if pd.isna(v) else f"{float(v):.1f}"
+    df = df.rename(columns=rename)
+    styler = tint_variance(df) if tint else df.style
+    return styler.format(fmts)
 
 
 def variance_view(df):      # vs_guidance / segment / vs_forecast (F/U tinted)
-    return fmt_numbers(tint_variance(pretty_table(relabel_lines(df))))
+    return money_table(df, money_cols={"Actual", "Plan", "Variance"},
+                       pct_cols={"Variance %"}, tint=True)
 
 
 def driver_view(df):        # leading indicators (no F/U tint)
-    return fmt_numbers(pretty_table(df))
+    return money_table(df, money_cols={"Prior", "Current", "Change", "From acquisition", "Organic"},
+                       pct_cols={"Change %", "Acquisition %", "Organic %"})
 
 
 def brand_layout(fig, height=420, ytitle="", xtitle=""):
@@ -317,8 +318,8 @@ with tab_src:
         if col == "non_gaap_op_margin":
             return fmt_pct(val)
         if "eps" in col:
-            return f"${val:,.2f}"
-        return fmt_m(val)
+            return fmt_eps(val)
+        return fmt_money(val)
 
     prov_rows = []
     for col, label in pv.DISPLAY_METRICS:
@@ -353,8 +354,20 @@ with tab_src:
                 "revenue_subscription", "revenue_organic", "inorganic_revenue", "rpo",
                 "ngs_arr", "billings", "non_gaap_op_margin", "non_gaap_eps_reported",
                 "guidance_revenue_next_q_low", "guidance_revenue_next_q_high"]
-        st.dataframe(df[[c for c in cols if c in df.columns]], width="stretch",
-                     hide_index=True, height=380)
+        prev = df[[c for c in cols if c in df.columns]]
+        # Per-cell self-describing format (raw reference dump): $-figures auto B/M,
+        # margin %, EPS $X.XX, date as YYYY-MM-DD. Kills six-decimal floats.
+        money_c = ["revenue_total", "revenue_product", "revenue_subscription", "revenue_organic",
+                   "inorganic_revenue", "rpo", "ngs_arr", "billings",
+                   "guidance_revenue_next_q_low", "guidance_revenue_next_q_high"]
+        pfmts = {c: (lambda v: fmt_money(v)) for c in money_c if c in prev.columns}
+        if "non_gaap_op_margin" in prev.columns:
+            pfmts["non_gaap_op_margin"] = lambda v: fmt_pct(v)
+        if "non_gaap_eps_reported" in prev.columns:
+            pfmts["non_gaap_eps_reported"] = lambda v: fmt_eps(v)
+        if "period_end_date" in prev.columns:
+            pfmts["period_end_date"] = lambda d: d.strftime("%Y-%m-%d") if pd.notna(d) else "—"
+        st.dataframe(prev.style.format(pfmts), width="stretch", hide_index=True, height=380)
 
     # 5) Honesty callouts
     st.markdown("##### Our honesty rules")
@@ -383,26 +396,27 @@ with tab_fc:
     nq = res.future_quarters[0]
     pt, lo, hi = res.total_point[0], res.total_low[0], res.total_high[0]
 
-    bottom_line(f"For <b>{nq}</b> we expect organic revenue of about <b>{fmt_m(pt)}</b>, "
-                f"most likely between <b>{fmt_m(lo)}</b> and <b>{fmt_m(hi)}</b>.")
+    bottom_line(f"For <b>{nq}</b> we expect organic revenue of about <b>{fmt_money(pt)}</b>, "
+                f"most likely between <b>{fmt_money(lo)}</b> and <b>{fmt_money(hi)}</b>.")
 
     k1, k2, k3 = st.columns(3)
     k1.metric("Next quarter", nq, help="The next quarter we forecast.")
-    k2.metric("Most likely revenue (organic)", fmt_m(pt),
+    k2.metric("Most likely revenue (organic)", fmt_money(pt),
               help="Organic revenue — " + HELP["organic"])
-    k3.metric("80% range ($M)", f"{lo:,.0f} – {hi:,.0f}", help=HELP["range"])
+    k3.metric("80% range", f"{fmt_money(lo)} – {fmt_money(hi)}", help=HELP["range"])
 
     hist = df[df["inorganic_revenue"] == 0]
     last_q, last_v = hist["fiscal_quarter"].iloc[-1], float(hist["revenue_total"].iloc[-1])
     fq = list(res.future_quarters)
-    # Connect the forecast to the last actual point so it continues, not floats.
-    fc_x = [last_q] + fq
-    fc_pt = [last_v] + list(res.total_point)
-    band_lo = [last_v] + list(res.total_low)
-    band_hi = [last_v] + list(res.total_high)
+    # Plot in $B (revenue is billions-scale) — one consistent unit per axis.
+    B = 1000.0
+    fc_x = [last_q] + fq          # connect the forecast to the last actual point
+    fc_pt = [(last_v) / B] + [v / B for v in res.total_point]
+    band_lo = [(last_v) / B] + [v / B for v in res.total_low]
+    band_hi = [(last_v) / B] + [v / B for v in res.total_high]
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=hist["fiscal_quarter"], y=hist["revenue_total"],
+    fig.add_trace(go.Scatter(x=hist["fiscal_quarter"], y=hist["revenue_total"] / B,
                              mode="lines+markers", name="Actual (history)",
                              line=dict(color=DARK)))
     fig.add_trace(go.Scatter(x=fc_x, y=band_hi, mode="lines", line=dict(width=0),
@@ -417,12 +431,12 @@ with tab_fc:
                   annotation_text="forecast →", annotation_position="top",
                   annotation_font=dict(size=11, color="#777"))
     # Tie the headline card's quarter to its point on the line.
-    fig.add_annotation(x=nq, y=pt, text=f"<b>{fmt_m(pt)}</b>", showarrow=True, arrowhead=2,
+    fig.add_annotation(x=nq, y=pt / B, text=f"<b>{fmt_money(pt, 'B')}</b>", showarrow=True, arrowhead=2,
                        ax=0, ay=-32, font=dict(color=ORANGE, size=12),
                        arrowcolor=ORANGE)
     all_q = list(hist["fiscal_quarter"]) + fq
     fig.update_xaxes(tickmode="array", tickvals=all_q[::2], tickangle=-45)
-    brand_layout(fig, height=440, ytitle="Revenue ($M)", xtitle="Fiscal quarter")
+    brand_layout(fig, height=440, ytitle="Revenue ($B)", xtitle="Fiscal quarter")
     st.plotly_chart(fig, width="stretch")
     st.caption("Forecast is **organic**; acquisitions are added separately (see the Variance tab).")
     how_to_read("the dark line is actual history; the dashed orange line (continuing from the last "
@@ -443,16 +457,23 @@ with tab_fc:
             "fiscal_quarter": "Quarter", "revenue_product_point": "Product",
             "revenue_subscription_point": "Subscription", "total_point": "Forecast",
             "total_low": "Low (80%)", "total_high": "High (80%)"})
-        st.dataframe(fc_tbl, width="stretch", hide_index=True)
+        _ren, _fmts = {}, {}
+        for c in ("Product", "Subscription", "Forecast", "Low (80%)", "High (80%)"):
+            sc = col_scale(fc_tbl[c])
+            _ren[c] = f"{c} ({'$B' if sc == 'B' else '$M'})"
+            _fmts[_ren[c]] = (lambda s: lambda v: money_cell(v, s))(sc)
+        st.dataframe(fc_tbl.rename(columns=_ren).style.format(_fmts),
+                     width="stretch", hide_index=True)
 
         held = df[df["inorganic_revenue"] > 0]
         if not held.empty and res.future_quarters[0] == held["fiscal_quarter"].iloc[0]:
             a = held["revenue_organic"].iloc[0]
             inside = lo <= a <= hi
             st.info(md(f"**Out-of-sample check — {held['fiscal_quarter'].iloc[0]}:** we forecast "
-                       f"organic {fmt_m(pt)} (range {fmt_m(lo)}–{fmt_m(hi)}); the actual organic "
-                       f"number was {fmt_m(a)} → {'inside' if inside else 'just outside'} the band "
-                       f"({(pt-a)/a*100:+.1f}%). A genuine test: the model never saw this quarter."))
+                       f"organic {fmt_money(pt)} (range {fmt_money(lo)}–{fmt_money(hi)}); the actual "
+                       f"organic number was {fmt_money(a)} → {'inside' if inside else 'just outside'} "
+                       f"the band ({fmt_pct((pt-a)/a*100, signed=True)}). A genuine test: the model "
+                       f"never saw this quarter."))
 
 # ============================================================== Variance tab
 with tab_var:
@@ -467,21 +488,21 @@ with tab_var:
     # Plain-English bottom line, computed (verifier-clean) — never hardcoded.
     bottom_line(plain_bottom_line(rep))
 
-    st.metric("Actual revenue", fmt_m(s["actual_total"]),
+    st.metric("Actual revenue", fmt_money(s["actual_total"]),
               help="Total reported revenue for the quarter (organic + acquisitions).")
     g1, g2 = st.columns([2, 1])
     with g1:
         st.markdown("**vs our forecast**")
         f1, f2 = st.columns(2)
-        f1.metric("Organic outperformance", fmt_m(s["organic_beat_$"]),
+        f1.metric("Organic outperformance", fmt_money(s["organic_beat_$"]),
                   help="The core business (" + HELP["organic"].lower() + ") vs our model's forecast.")
         share = s.get("inorganic_share_of_beat_%")
-        f2.metric("From acquisition", fmt_m(s["inorganic"]),
-                  delta=(f"{share:.0f}% of the beat vs forecast" if share is not None else None),
+        f2.metric("From acquisition", fmt_money(s["inorganic"]),
+                  delta=(f"{fmt_pct(share)} of the beat vs forecast" if share is not None else None),
                   delta_color="off", help=HELP["inorganic"])
     with g2:
         st.markdown("**vs guidance**")
-        st.metric("Beat guidance", fmt_m(s["vs_guidance_$"]),
+        st.metric("Beat guidance", fmt_money(s["vs_guidance_$"]),
                   delta=f"{fmt_pct(s['vs_guidance_%'], signed=True)} · {s['vs_guidance_flag']}",
                   help=HELP["guidance"])
 
@@ -501,16 +522,18 @@ with tab_var:
             bases.append(running if amt >= 0 else running + amt)
             heights.append(abs(amt))
             running += amt
-        xs.append(r.step); colors.append(colmap.get(kind, DARK)); texts.append(fmt_m(amt))
-    fig = go.Figure(go.Bar(x=xs, y=heights, base=bases, marker_color=colors, width=0.6,
+        xs.append(r.step); colors.append(colmap.get(kind, DARK)); texts.append(fmt_money(amt, "B"))
+    B = 1000.0  # plot the bridge in $B — one consistent unit per axis
+    fig = go.Figure(go.Bar(x=xs, y=[h / B for h in heights], base=[b / B for b in bases],
+                           marker_color=colors, width=0.6,
                            text=texts, textposition="outside",
                            hovertemplate="%{x}: %{text}<extra></extra>"))
-    fig.add_hline(y=s["guidance_midpoint"],
+    fig.add_hline(y=s["guidance_midpoint"] / B,
                   line=dict(color="rgba(110,110,110,0.7)", dash="dot", width=1),
-                  annotation_text=f"Guidance {fmt_m(s['guidance_midpoint'])}",
+                  annotation_text=f"Guidance {fmt_money(s['guidance_midpoint'], 'B')}",
                   annotation_position="top left",
                   annotation_font=dict(size=11, color="#777"))
-    brand_layout(fig, height=440, ytitle="Revenue ($M)")
+    brand_layout(fig, height=440, ytitle="Revenue ($B)")
     fig.update_yaxes(rangemode="tozero")
     st.plotly_chart(fig, width="stretch")
     how_to_read("each block moves from our forecast (left) to actual revenue (right). "
@@ -604,7 +627,11 @@ with tab_anom:
             "- Then we **label each flag**: *expected* if a disclosure explains it (like the "
             "acquisition), or *investigate* if not. That judgment is the point — a CFO wants the "
             "one alarm with a real cause, not fifty.")
-        st.dataframe(arep.to_frame(), width="stretch", hide_index=True)
+        adf = arep.to_frame()
+        # Detail dump: a 'unit' column marks $M vs % per row, so round the numeric
+        # columns to one decimal (kills six-decimal floats) without forcing a unit.
+        afmt = {c: "{:.1f}" for c in ("observed", "expected", "deviation_pct") if c in adf.columns}
+        st.dataframe(adf.style.format(afmt), width="stretch", hide_index=True)
 
 # ============================================================ Exec Summary tab
 with tab_sum:

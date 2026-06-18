@@ -35,6 +35,7 @@ import numpy as np
 import pandas as pd
 
 from src import config
+from src.fmt import fmt_money, fmt_pct
 
 _SEV_RANK = {"info": 1, "warning": 2, "critical": 3}
 
@@ -171,8 +172,8 @@ def _detect_reconciliation(df: pd.DataFrame, notes: list) -> list:
                 observed=seg_sum, expected=total,
                 deviation_pct=round(gap / total * 100, 2) if total else 0.0, unit="$M",
                 severity="critical", status="unexplained",
-                why=(f"Product + Subscription sum to ${seg_sum:,.1f}M but total revenue "
-                     f"is reported ${total:,.1f}M — a ${abs(gap):,.1f}M discrepancy that "
+                why=(f"Product + Subscription sum to {fmt_money(seg_sum)} but total revenue "
+                     f"is reported {fmt_money(total)} — a {fmt_money(abs(gap))} discrepancy that "
                      f"must be reconciled before the number is trusted."),
             ))
         # (b) organic + inorganic == total
@@ -184,8 +185,8 @@ def _detect_reconciliation(df: pd.DataFrame, notes: list) -> list:
                 observed=round(org + inorg, 1), expected=total,
                 deviation_pct=round(ogap / total * 100, 2) if total else 0.0, unit="$M",
                 severity="critical", status="unexplained",
-                why=(f"Organic ${org:,.1f}M + inorganic ${inorg:,.1f}M = ${org + inorg:,.1f}M, "
-                     f"which does not tie to the ${total:,.1f}M total reported."),
+                why=(f"Organic {fmt_money(org)} + inorganic {fmt_money(inorg)} = {fmt_money(org + inorg)}, "
+                     f"which does not tie to the {fmt_money(total)} total reported."),
             ))
         # (c) independent SEC XBRL cross-check (where a quarterly fact exists)
         if q in recon.index and not bool(recon.loc[q, "xbrl_matches"]):
@@ -195,8 +196,8 @@ def _detect_reconciliation(df: pd.DataFrame, notes: list) -> list:
                 observed=total, expected=xv,
                 deviation_pct=round((total - xv) / xv * 100, 2) if xv else 0.0, unit="$M",
                 severity="critical", status="unexplained",
-                why=(f"Press-release total ${total:,.1f}M disagrees with the independent "
-                     f"SEC XBRL figure ${xv:,.1f}M for the same period."),
+                why=(f"Press-release total {fmt_money(total)} disagrees with the independent "
+                     f"SEC XBRL figure {fmt_money(xv)} for the same period."),
             ))
     return out
 
@@ -233,8 +234,8 @@ def _detect_trend_band(df: pd.DataFrame, notes: list) -> list:
                 observed=growth, expected=round(typical, 1),
                 deviation_pct=round(growth - typical, 1), unit="%",
                 severity=_sev_from_z(z[i]), status="unexplained",
-                why=(f"{label} moved {growth:+.1f}% {kind}, versus a typical "
-                     f"{round(typical, 1):+.1f}%; robust z = {z[i]:.1f} — outside the "
+                why=(f"{label} moved {fmt_pct(growth, signed=True)} {kind}, versus a typical "
+                     f"{fmt_pct(round(typical, 1), signed=True)}; robust z = {z[i]:.1f} — outside the "
                      f"metric's normal band."),
             ))
     return out
@@ -266,8 +267,8 @@ def _detect_forecast_band(df: pd.DataFrame, quarter: str, backtest, notes: list)
                 detector="forecast_band", observed=round(actual, 1), expected=round(point, 1),
                 deviation_pct=round((actual - point) / point * 100, 1), unit="$M",
                 severity=sev, status="unexplained",
-                why=(f"Organic revenue actual ${actual:,.1f}M vs the model's "
-                     f"${point:,.1f}M ({round((actual - point) / point * 100, 1):+.1f}%) — "
+                why=(f"Organic revenue actual {fmt_money(actual)} vs the model's "
+                     f"{fmt_money(point)} ({fmt_pct(round((actual - point) / point * 100, 1), signed=True)}) — "
                      f"outside the calibrated {pi:.0%} band (≈{ratio:.1f}× the error radius)."),
             ))
 
@@ -296,15 +297,15 @@ def _detect_forecast_band(df: pd.DataFrame, quarter: str, backtest, notes: list)
         explained = inorg > 0 and gap != 0 and (inorg / gap) >= 0.5
         if explained:
             status, expl = "explained", (
-                f"${inorg:,.0f}M of the gap is the disclosed CyberArk + Chronosphere "
+                f"{fmt_money(inorg)} of the gap is the disclosed CyberArk + Chronosphere "
                 f"acquisition revenue — structural, not a forecasting error.")
-            why = (f"Reported total revenue ${actual_total:,.0f}M came in ${gap:,.0f}M above "
-                   f"the ${f_org:,.0f}M organic forecast; ${inorg:,.0f}M of that is the "
+            why = (f"Reported total revenue {fmt_money(actual_total)} came in {fmt_money(gap)} above "
+                   f"the {fmt_money(f_org)} organic forecast; {fmt_money(inorg)} of that is the "
                    f"disclosed CyberArk + Chronosphere acquisition.")
         else:
             status, expl = "unexplained", None
-            why = (f"Reported total revenue ${actual_total:,.0f}M is ${gap:,.0f}M from the "
-                   f"${f_org:,.0f}M forecast — outside the calibrated {pi:.0%} band "
+            why = (f"Reported total revenue {fmt_money(actual_total)} is {fmt_money(gap)} from the "
+                   f"{fmt_money(f_org)} forecast — outside the calibrated {pi:.0%} band "
                    f"(≈{ratio_t:.1f}× the error radius).")
         out.append(Anomaly(
             metric="revenue_total", quarter=quarter, detector="forecast_band",
@@ -321,8 +322,8 @@ def _detect_forecast_band(df: pd.DataFrame, quarter: str, backtest, notes: list)
             metric="revenue_organic", quarter=quarter, detector="forecast_band",
             observed=round(actual_org, 1), expected=round(f_org, 1),
             deviation_pct=dev, unit="$M", severity=sev_o, status="unexplained",
-            why=(f"Organic revenue ${actual_org:,.0f}M landed {dev:+.1f}% versus the "
-                 f"${f_org:,.0f}M forecast — just outside the {pi:.0%} band "
+            why=(f"Organic revenue {fmt_money(actual_org)} landed {fmt_pct(dev, signed=True)} versus the "
+                 f"{fmt_money(f_org)} forecast — just outside the {pi:.0%} band "
                  f"(≈{ratio_o:.1f}× the calibrated error radius).")))
     return out
 
