@@ -333,6 +333,12 @@ The audience is an FP&A analyst or CFO-org exec with **zero ML background**, so 
 - **Charts over tables**, each with a one-line "how to read this" caption.
 - **Palo Alto Networks brand theme**, with one careful rule: **brand orange is for branding only** (header, links, active tab, the non-semantic forecast line); **meaning** is carried by separate semantic colors — favorable **green**, unfavorable **red**, caution/expected **amber** — so a green/red number never gets confused with branding. This is the same "bridge" competency as the rest of the project: the tool fits the user, not the other way around.
 
+### Chart clarity passes (Variance & Forecast tabs)
+
+Two charts were tuned specifically so a non-technical viewer can't misread them:
+- **Variance waterfall** — the organic-outperformance step is **green** (a real gain) and the acquisition step is **gray** (neither good nor bad), so the headline insight — *most of the beat was the acquisition* — is visible in the bar colors, not buried in labels. A dotted line marks management guidance, and the cards are grouped under **"vs our forecast"** and **"vs guidance"** subheaders so the two different baselines are never confused. The tab's one-line **bottom line** ("…~89% of that was the CyberArk acquisition…") is built from computed values and **passes the no-hallucination verifier** (a test enforces it). Detail-table columns use plain finance labels and the variance figures are tinted green/red by favorability.
+- **Forecast chart** — the dashed forecast line now **continues from the last actual point** (instead of floating to the right), a faint **"forecast →"** boundary marks where history ends, the legend says **"Forecast (organic)"** with a note that acquisitions are added separately (so the \$2,564M organic forecast isn't misread against the \$3,002M reported total), and the headline quarter's point is **labeled on the line** so the card and the chart point are visibly the same. The y-axis stays from-zero (honest); only labels/colors changed.
+
 ## Glossary
 
 | Term | One-line definition |

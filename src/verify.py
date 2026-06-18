@@ -110,6 +110,11 @@ def build_source_of_truth(quarter: str = "FY2026Q3") -> dict:
         _add(money, b["amount"])
     for seg in rep.segment_attribution.to_dict("records"):
         _add(money, seg["variance"]); _add(pct, seg["variance_pct"])
+    # vs-forecast and vs-guidance lines (actual/plan/variance) — so the plain
+    # bottom line (e.g. the $438M total beat vs forecast) stays verifiable.
+    for tbl in (rep.vs_forecast, rep.vs_guidance):
+        for r in tbl.to_dict("records"):
+            _add(money, r["actual"], r["plan"], r["variance"]); _add(pct, r["variance_pct"])
     for d in rep.driver_attribution.to_dict("records"):
         _add(money, d["prior"], d["current"], d["change"], d["inorganic_part"], d["organic_part"])
         _add(pct, d["change_pct"])

@@ -183,6 +183,17 @@ def test_favorability_flips_for_cost_lines():
     assert favorability(100, 100) == "On plan"
 
 
+def test_variance_bottom_line_verifies():
+    """The plain-English bottom line is built from computed values and passes the
+    no-hallucination verifier (every $ and % traces to the source of truth)."""
+    from src.variance import build_report, plain_bottom_line
+    from src import verify
+    rep = build_report("FY2026Q3")
+    text = plain_bottom_line(rep)
+    assert "CyberArk" in text and "438" in text   # total beat vs forecast, cited
+    assert verify.verify_text(text, verify.build_source_of_truth("FY2026Q3")) == []
+
+
 def test_variance_no_leakage():
     """The forecast used for variance must train only on data before the quarter."""
     from src.variance import forecast_for

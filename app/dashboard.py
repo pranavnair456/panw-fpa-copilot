@@ -31,7 +31,7 @@ from src import config
 from src import provenance as pv
 from src.forecast import run_forecast, load_conformal_errors
 from src.backtest import run_backtest                 # still used (powers Anomalies)
-from src.variance import build_report
+from src.variance import build_report, plain_bottom_line
 from src.anomaly import build_report as build_anomalies
 from src.summary import generate_brief
 from src.chat import ask as chat_ask
@@ -47,6 +47,7 @@ FAV = "#00CC66"      # favorable (semantic)
 UNFAV = "#D9362B"    # unfavorable (semantic)
 CAUTION = "#FFCB06"  # caution / expected (semantic)
 INFO = "#5B8DEF"     # informational (semantic, non-brand blue)
+INORG = "#9AA0A6"    # acquisition / inorganic (neutral gray — not good/bad)
 
 BRAND_CSS = f"""
 <style>
@@ -122,6 +123,32 @@ METRIC_NAMES = {
 
 def prettify_metric(m: str) -> str:
     return METRIC_NAMES.get(m, m.replace("_", " ").capitalize())
+
+
+# Plain finance labels for the detail-table columns (no snake_case shown to users).
+COL_RENAME = {
+    "line": "Line", "actual": "Actual", "plan": "Plan", "variance": "Variance",
+    "variance_pct": "Variance %", "flag": "Status", "unit": "Unit",
+    "driver": "Driver", "prior": "Prior", "current": "Current", "change": "Change",
+    "change_pct": "Change %", "inorganic_part": "From acquisition", "organic_part": "Organic",
+}
+
+
+def pretty_table(df_in):
+    return df_in.rename(columns=COL_RENAME)
+
+
+def tint_variance(df_pretty):
+    """Tint the Variance / Variance % cells green (favorable) or red (unfavorable)
+    by the row's Status, so good-vs-bad reads at a glance."""
+    cols = list(df_pretty.columns)
+
+    def _row(r):
+        c = FAV if r.get("Status") == "Favorable" else (
+            UNFAV if r.get("Status") == "Unfavorable" else "")
+        return [f"color:{c}; font-weight:600" if (col in ("Variance", "Variance %") and c)
+                else "" for col in cols]
+    return df_pretty.style.apply(_row, axis=1)
 
 
 def brand_layout(fig, height=420, ytitle="", xtitle=""):
@@ -303,42 +330,61 @@ with tab_fc:
     c1, c2 = st.columns(2)
     horizon = c1.slider("Quarters ahead to forecast", 1, 4, config.FORECAST_HORIZON,
                         help="How many future quarters to project.")
-    method = c2.radio("Range method", ["conformal (recommended)", "model's own"],
+    method = c2.radio("Range method",
+                      ["honest range (based on past accuracy)", "model's own estimate"],
                       horizontal=True,
-                      help="Conformal sets the band from real past errors (honest). "
-                           "The model's own band was over-confident in testing.")
-    config.INTERVAL_METHOD = "conformal" if method.startswith("conformal") else "mc"
+                      help="The honest range sets the band from real past errors (well-calibrated). "
+                           "The model's own estimate was over-confident in testing.")
+    config.INTERVAL_METHOD = "conformal" if method.startswith("honest") else "mc"
     res = run_forecast(df=df, horizon=horizon, conformal_errors=errors)
     nq = res.future_quarters[0]
     pt, lo, hi = res.total_point[0], res.total_low[0], res.total_high[0]
 
     bottom_line(f"For <b>{nq}</b> we expect organic revenue of about <b>{fmt_m(pt)}</b>, "
-                f"most likely between <b>{fmt_m(lo)}</b> and <b>{fmt_m(hi)}</b>. "
-                f"We show a range, not a single guess, because planning is about the downside.")
+                f"most likely between <b>{fmt_m(lo)}</b> and <b>{fmt_m(hi)}</b>.")
 
     k1, k2, k3 = st.columns(3)
     k1.metric("Next quarter", nq, help="The next quarter we forecast.")
-    k2.metric("Most likely revenue", fmt_m(pt),
+    k2.metric("Most likely revenue (organic)", fmt_m(pt),
               help="Organic revenue — " + HELP["organic"])
     k3.metric("80% range ($M)", f"{lo:,.0f} – {hi:,.0f}", help=HELP["range"])
 
     hist = df[df["inorganic_revenue"] == 0]
-    fq = res.future_quarters
+    last_q, last_v = hist["fiscal_quarter"].iloc[-1], float(hist["revenue_total"].iloc[-1])
+    fq = list(res.future_quarters)
+    # Connect the forecast to the last actual point so it continues, not floats.
+    fc_x = [last_q] + fq
+    fc_pt = [last_v] + list(res.total_point)
+    band_lo = [last_v] + list(res.total_low)
+    band_hi = [last_v] + list(res.total_high)
+
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=hist["fiscal_quarter"], y=hist["revenue_total"],
                              mode="lines+markers", name="Actual (history)",
                              line=dict(color=DARK)))
-    fig.add_trace(go.Scatter(x=fq, y=res.total_high, mode="lines", line=dict(width=0),
+    fig.add_trace(go.Scatter(x=fc_x, y=band_hi, mode="lines", line=dict(width=0),
                              showlegend=False, hoverinfo="skip"))
-    fig.add_trace(go.Scatter(x=fq, y=res.total_low, mode="lines", fill="tonexty",
-                             fillcolor="rgba(250,88,45,0.15)", line=dict(width=0),
+    fig.add_trace(go.Scatter(x=fc_x, y=band_lo, mode="lines", fill="tonexty",
+                             fillcolor="rgba(250,88,45,0.22)", line=dict(width=0),
                              name="80% range"))
-    fig.add_trace(go.Scatter(x=fq, y=res.total_point, mode="lines+markers",
-                             name="Forecast", line=dict(color=ORANGE, dash="dash")))
+    fig.add_trace(go.Scatter(x=fc_x, y=fc_pt, mode="lines+markers",
+                             name="Forecast (organic)", line=dict(color=ORANGE, dash="dash")))
+    # Boundary between the last actual and the first forecast quarter.
+    fig.add_vline(x=len(hist) - 0.5, line=dict(color="rgba(120,120,120,0.5)", dash="dot", width=1),
+                  annotation_text="forecast →", annotation_position="top",
+                  annotation_font=dict(size=11, color="#777"))
+    # Tie the headline card's quarter to its point on the line.
+    fig.add_annotation(x=nq, y=pt, text=f"<b>{fmt_m(pt)}</b>", showarrow=True, arrowhead=2,
+                       ax=0, ay=-32, font=dict(color=ORANGE, size=12),
+                       arrowcolor=ORANGE)
+    all_q = list(hist["fiscal_quarter"]) + fq
+    fig.update_xaxes(tickmode="array", tickvals=all_q[::2], tickangle=-45)
     brand_layout(fig, height=440, ytitle="Revenue ($M)", xtitle="Fiscal quarter")
     st.plotly_chart(fig, width="stretch")
-    how_to_read("the dark line is actual history; the dashed orange line is our best estimate; "
-                "the shaded band is the range we're ~80% confident in.")
+    st.caption("Forecast is **organic**; acquisitions are added separately (see the Variance tab).")
+    how_to_read("the dark line is actual history; the dashed orange line (continuing from the last "
+                "actual point) is our best estimate; the shaded band is the range we're ~80% "
+                "confident in. The labeled point is the headline number above.")
 
     with st.expander("How this works"):
         st.markdown(
@@ -350,7 +396,11 @@ with tab_fc:
             "and the 80% range contained the truth about **86%** of the time — i.e. it's honest.\n"
             "- We forecast the **organic** business and add acquisitions separately, so a one-time "
             "deal can't masquerade as underlying momentum.")
-        st.dataframe(res.to_frame(), width="stretch", hide_index=True)
+        fc_tbl = res.to_frame().rename(columns={
+            "fiscal_quarter": "Quarter", "revenue_product_point": "Product",
+            "revenue_subscription_point": "Subscription", "total_point": "Forecast",
+            "total_low": "Low (80%)", "total_high": "High (80%)"})
+        st.dataframe(fc_tbl, width="stretch", hide_index=True)
 
         held = df[df["inorganic_revenue"] > 0]
         if not held.empty and res.future_quarters[0] == held["fiscal_quarter"].iloc[0]:
@@ -371,52 +421,77 @@ with tab_var:
     rep = get_variance(qv)
     s = rep.summary
 
-    inorg_share = s.get("inorganic_share_of_beat_%")
-    share_txt = (f" — but <b>{fmt_m(s['inorganic'])}</b> of that came from acquisitions, so the "
-                 f"core business beat our forecast by only about <b>{fmt_m(s['organic_beat_$'])}</b>"
-                 ) if s["inorganic"] else ""
-    bottom_line(f"{qv} revenue of <b>{fmt_m(s['actual_total'])}</b> came in "
-                f"<b>{fmt_m(s['vs_guidance_$'])}</b> ({fmt_pct(s['vs_guidance_%'], signed=True)}) "
-                f"vs guidance{share_txt}.")
+    # Plain-English bottom line, computed (verifier-clean) — never hardcoded.
+    bottom_line(plain_bottom_line(rep))
 
-    k1, k2, k3, k4 = st.columns(4)
-    k1.metric("Actual revenue", fmt_m(s["actual_total"]))
-    k2.metric("vs guidance", fmt_m(s["vs_guidance_$"]),
-              delta=f"{fmt_pct(s['vs_guidance_%'], signed=True)} · {s['vs_guidance_flag']}",
-              help=HELP["guidance"])
-    k3.metric("Core business beat forecast", fmt_m(s["organic_beat_$"]),
-              help="How much the " + HELP["organic"].lower())
-    k4.metric("From acquisitions", fmt_m(s["inorganic"]),
-              delta=(f"{inorg_share:.0f}% of the beat" if inorg_share is not None else None),
-              delta_color="off", help=HELP["inorganic"])
+    st.metric("Actual revenue", fmt_m(s["actual_total"]),
+              help="Total reported revenue for the quarter (organic + acquisitions).")
+    g1, g2 = st.columns([2, 1])
+    with g1:
+        st.markdown("**vs our forecast**")
+        f1, f2 = st.columns(2)
+        f1.metric("Organic outperformance", fmt_m(s["organic_beat_$"]),
+                  help="The core business (" + HELP["organic"].lower() + ") vs our model's forecast.")
+        share = s.get("inorganic_share_of_beat_%")
+        f2.metric("From acquisition", fmt_m(s["inorganic"]),
+                  delta=(f"{share:.0f}% of the beat vs forecast" if share is not None else None),
+                  delta_color="off", help=HELP["inorganic"])
+    with g2:
+        st.markdown("**vs guidance**")
+        st.metric("Beat guidance", fmt_m(s["vs_guidance_$"]),
+                  delta=f"{fmt_pct(s['vs_guidance_%'], signed=True)} · {s['vs_guidance_flag']}",
+                  help=HELP["guidance"])
 
+    # Manual waterfall so organic (green) and acquisition (gray) read differently —
+    # the key insight shows in the bars, not just the labels.
     b = rep.bridge
-    fig = go.Figure(go.Waterfall(
-        orientation="v", measure=["absolute", "relative", "relative", "total"][:len(b)],
-        x=b["step"], y=b["amount"],
-        text=[fmt_m(v) for v in b["amount"]], textposition="outside",
-        connector=dict(line=dict(color="rgba(120,120,120,0.5)")),
-        increasing=dict(marker=dict(color=FAV)),
-        decreasing=dict(marker=dict(color=UNFAV)),
-        totals=dict(marker=dict(color=DARK)),
-    ))
-    brand_layout(fig, height=420, ytitle="Revenue ($M)")
+    colmap = {"start": DARK, "end": DARK, "favorable": FAV, "unfavorable": UNFAV, "inorganic": INORG}
+    xs, bases, heights, colors, texts = [], [], [], [], []
+    running = 0.0
+    for r in b.itertuples(index=False):
+        amt, kind = float(r.amount), r.kind
+        if kind in ("start", "end"):
+            bases.append(0.0); heights.append(amt)
+            if kind == "start":
+                running = amt
+        else:
+            bases.append(running if amt >= 0 else running + amt)
+            heights.append(abs(amt))
+            running += amt
+        xs.append(r.step); colors.append(colmap.get(kind, DARK)); texts.append(fmt_m(amt))
+    fig = go.Figure(go.Bar(x=xs, y=heights, base=bases, marker_color=colors, width=0.6,
+                           text=texts, textposition="outside",
+                           hovertemplate="%{x}: %{text}<extra></extra>"))
+    fig.add_hline(y=s["guidance_midpoint"],
+                  line=dict(color="rgba(110,110,110,0.7)", dash="dot", width=1),
+                  annotation_text=f"Guidance {fmt_m(s['guidance_midpoint'])}",
+                  annotation_position="top left",
+                  annotation_font=dict(size=11, color="#777"))
+    brand_layout(fig, height=440, ytitle="Revenue ($M)")
+    fig.update_yaxes(rangemode="tozero")
     st.plotly_chart(fig, width="stretch")
-    how_to_read("start at our forecast on the left; each step adds or subtracts until you reach "
-                "the actual reported revenue on the right. Green = added, red = shortfall.")
+    how_to_read("each block moves from our forecast (left) to actual revenue (right). "
+                "**Green** = organic gain · **gray** = acquisition · **red** = shortfall. "
+                "The dotted line is management guidance.")
 
     with st.expander("Show the detail — full attribution"):
         c1, c2 = st.columns(2)
         with c1:
             st.markdown("**vs management guidance**")
-            st.dataframe(rep.vs_guidance, width="stretch", hide_index=True)
+            st.dataframe(tint_variance(pretty_table(rep.vs_guidance)),
+                         width="stretch", hide_index=True)
             st.markdown("**By segment (vs forecast)**")
-            st.dataframe(rep.segment_attribution, width="stretch", hide_index=True)
+            st.dataframe(tint_variance(pretty_table(rep.segment_attribution)),
+                         width="stretch", hide_index=True)
+            st.caption("Segment actuals include acquisition revenue; the organic split isn't "
+                       "disclosed, so these segment beats are inflated.")
         with c2:
             st.markdown("**Leading indicators (organic vs acquired)**")
-            st.dataframe(rep.driver_attribution, width="stretch", hide_index=True)
+            st.dataframe(pretty_table(rep.driver_attribution),
+                         width="stretch", hide_index=True)
             st.markdown("**vs our forecast**")
-            st.dataframe(rep.vs_forecast, width="stretch", hide_index=True)
+            st.dataframe(tint_variance(pretty_table(rep.vs_forecast)),
+                         width="stretch", hide_index=True)
         st.markdown("**Notes**")
         for n in rep.notes:
             st.markdown(f"- {md(n)}")
@@ -525,9 +600,12 @@ with tab_chat:
                 "What's the revenue forecast for next quarter?",
                 "How big was the CyberArk contribution?"]
     cols = st.columns(len(examples))
-    preset = next((examples[i] for i, c in enumerate(cols)
-                   if c.button(examples[i], key=f"ex{i}")), None)
-    question = st.text_input("Your question", value=preset or "", key="chat_q",
+    for i, ex in enumerate(examples):
+        # Write the preset into session_state BEFORE the input is created, so a
+        # keyed text_input picks it up (passing value= is ignored once keyed).
+        if cols[i].button(ex, key=f"ex{i}"):
+            st.session_state["chat_q"] = ex
+    question = st.text_input("Your question", key="chat_q",
                              placeholder="e.g. How is the core business doing?")
     if question:
         ans = chat_ask(question)

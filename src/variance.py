@@ -177,9 +177,31 @@ def build_report(quarter: str = "FY2026Q3", df: pd.DataFrame | None = None) -> V
                           seg, driver_attr, notes)
 
 
+def plain_bottom_line(rep: "VarianceReport") -> str:
+    """A one-line, non-technical summary built ONLY from computed values (so it
+    passes the no-hallucination verifier). Used at the top of the Variance tab."""
+    s = rep.summary
+    beat = s["actual_total"] - s["forecast_organic"]          # total vs our forecast
+    verb = "beat" if beat >= 0 else "missed"
+    ob = s["organic_beat_$"]
+    ob_str = f"{'+' if ob >= 0 else '-'}${abs(ob):,.0f}M"   # e.g. +$50M (verifier-parseable)
+    out = f"Revenue {verb} our forecast by ${abs(beat):,.0f}M"
+    share = s.get("inorganic_share_of_beat_%")
+    if s["inorganic"] and share is not None and beat:
+        out += (f", but ~{share:.0f}% of that was the CyberArk acquisition — organically "
+                f"we were on target ({ob_str} vs forecast)")
+    else:
+        out += f" — all organic ({ob_str} vs forecast)"
+    g = s["vs_guidance_$"]
+    out += (f". Versus guidance, ${abs(g):,.0f}M {'ahead' if g >= 0 else 'behind'} "
+            f"({s['vs_guidance_%']:+.1f}%).")
+    return out
+
+
 if __name__ == "__main__":
     q = sys.argv[1] if len(sys.argv) > 1 else "FY2026Q3"
     rep = build_report(q)
+    print(plain_bottom_line(rep), "\n")
     print(f"=== Variance report — {rep.quarter} ===\n")
     s = rep.summary
     print(f"Actual total {s['actual_total']:,.0f}  (organic {s['actual_organic']:,.0f} "
