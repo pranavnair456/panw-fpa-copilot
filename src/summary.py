@@ -19,7 +19,6 @@ from src.llm.client import client
 from src.variance import build_report
 from src.forecast import run_forecast, load_conformal_errors, load as load_fin
 from src import verify
-from src.fmt import fmt_money, fmt_pct
 
 
 @dataclass
@@ -55,21 +54,21 @@ def _facts_block(f: dict) -> str:
     s, b, d = f["rep"].summary, f["rep"].bridge, f["rep"].driver_attribution
     lines = [
         f"Quarter: {f['rep'].quarter}",
-        f"Total revenue (actual): {fmt_money(s['actual_total'])}",
-        f"  - Organic: {fmt_money(s['actual_organic'])}; Inorganic (CyberArk+Chronosphere): {fmt_money(s['inorganic'])}",
-        f"Management guidance midpoint: {fmt_money(s['guidance_midpoint'])}; "
-        f"variance vs guidance: {fmt_money(s['vs_guidance_$'])} ({fmt_pct(s['vs_guidance_%'], signed=True)}, {s['vs_guidance_flag']})",
-        f"Our model forecast (organic): {fmt_money(s['forecast_organic'])}; organic beat vs forecast: {fmt_money(s['organic_beat_$'])}",
-        f"Inorganic share of the beat vs forecast: {fmt_pct(s['inorganic_share_of_beat_%'])}",
-        "Variance bridge: " + " -> ".join(f"{r['step']} {fmt_money(r['amount'])}" for r in b.to_dict("records")),
+        f"Total revenue (actual): ${s['actual_total']:,.0f}M",
+        f"  - Organic: ${s['actual_organic']:,.0f}M; Inorganic (CyberArk+Chronosphere): ${s['inorganic']:,.0f}M",
+        f"Management guidance midpoint: ${s['guidance_midpoint']:,.0f}M; "
+        f"variance vs guidance: ${s['vs_guidance_$']:+,.0f}M ({s['vs_guidance_%']:+.1f}%, {s['vs_guidance_flag']})",
+        f"Our model forecast (organic): ${s['forecast_organic']:,.0f}M; organic beat vs forecast: ${s['organic_beat_$']:+,.0f}M",
+        f"Inorganic share of the beat vs forecast: {s['inorganic_share_of_beat_%']:.0f}%",
+        "Variance bridge: " + " -> ".join(f"{r['step']} ${r['amount']:,.0f}M" for r in b.to_dict("records")),
     ]
     for r in d.to_dict("records"):
-        lines.append(f"Driver {r['driver']}: {fmt_money(r['prior'])} -> {fmt_money(r['current'])} "
-                     f"({fmt_money(r['change'])}, {fmt_pct(r['change_pct'], signed=True)}; "
-                     f"{fmt_money(r['inorganic_part'])} inorganic / {fmt_money(r['organic_part'])} organic)")
+        lines.append(f"Driver {r['driver']}: ${r['prior']:,.0f}M -> ${r['current']:,.0f}M "
+                     f"(+${r['change']:,.0f}M, {r['change_pct']:+.0f}%; "
+                     f"${r['inorganic_part']:,.0f}M inorganic / ${r['organic_part']:,.0f}M organic)")
     nq = f["next_q"]
-    lines.append(f"Forecast {nq} organic revenue: {fmt_money(f['fc'].total_point[f['fwd_idx']])} "
-                 f"(80% band {fmt_money(f['fc'].total_low[f['fwd_idx']])}-{fmt_money(f['fc'].total_high[f['fwd_idx']])})")
+    lines.append(f"Forecast {nq} organic revenue: ${f['fc'].total_point[f['fwd_idx']]:,.0f}M "
+                 f"(80% band ${f['fc'].total_low[f['fwd_idx']]:,.0f}-${f['fc'].total_high[f['fwd_idx']]:,.0f}M)")
     if f["sig"]:
         sg = f["sig"]
         lines.append(f"Transcript signal: sentiment={sg['management_sentiment']}, "
@@ -94,13 +93,13 @@ def _offline_brief(f: dict) -> str:
     rpo = d["RPO (backlog)"]
     return f"""# Executive Brief — Palo Alto Networks, {f['rep'].quarter}
 
-**Headline.** Total revenue landed at **{fmt_money(s['actual_total'])}**, {fmt_money(s['vs_guidance_$'])} ({fmt_pct(s['vs_guidance_%'], signed=True)}) versus the guidance midpoint of {fmt_money(s['guidance_midpoint'])} — a {s['vs_guidance_flag'].lower()} result.
+**Headline.** Total revenue landed at **${s['actual_total']:,.0f}M**, ${s['vs_guidance_$']:+,.0f}M ({s['vs_guidance_%']:+.1f}%) versus the guidance midpoint of ${s['guidance_midpoint']:,.0f}M — a {s['vs_guidance_flag'].lower()} result.
 
-**The variance story.** The headline beat is mostly inorganic: {fmt_money(s['inorganic'])} came from the CyberArk and Chronosphere acquisitions. Against our model's organic forecast of {fmt_money(s['forecast_organic'])}, the underlying business beat by just {fmt_money(s['organic_beat_$'])} — acquisitions account for {fmt_pct(s['inorganic_share_of_beat_%'])} of the total upside to forecast. Read against guidance (which already embedded the deals), the {fmt_money(s['vs_guidance_$'])} beat reflects organic execution, not the acquisitions themselves.
+**The variance story.** The headline beat is mostly inorganic: ${s['inorganic']:,.0f}M came from the CyberArk and Chronosphere acquisitions. Against our model's organic forecast of ${s['forecast_organic']:,.0f}M, the underlying business beat by just ${s['organic_beat_$']:+,.0f}M — acquisitions account for {s['inorganic_share_of_beat_%']:.0f}% of the total upside to forecast. Read against guidance (which already embedded the deals), the ${s['vs_guidance_$']:+,.0f}M beat reflects organic execution, not the acquisitions themselves.
 
-**Drivers.** Remaining performance obligations (backlog) rose to **{fmt_money(rpo['current'])}** ({fmt_pct(rpo['change_pct'], signed=True)} Q/Q), but {fmt_money(rpo['inorganic_part'])} of that increase is acquired — only {fmt_money(rpo['organic_part'])} is organic, consistent with the modest organic revenue beat.
+**Drivers.** Remaining performance obligations (backlog) rose to **${rpo['current']:,.0f}M** ({rpo['change_pct']:+.0f}% Q/Q), but ${rpo['inorganic_part']:,.0f}M of that increase is acquired — only ${rpo['organic_part']:,.0f}M is organic, consistent with the modest organic revenue beat.
 
-**Forecast.** Our backtested model projects {nq} organic revenue of **{fmt_money(f['fc'].total_point[f['fwd_idx']])}** (80% interval {fmt_money(f['fc'].total_low[f['fwd_idx']])}–{fmt_money(f['fc'].total_high[f['fwd_idx']])}).
+**Forecast.** Our backtested model projects {nq} organic revenue of **${f['fc'].total_point[f['fwd_idx']]:,.0f}M** (80% interval ${f['fc'].total_low[f['fwd_idx']]:,.0f}-${f['fc'].total_high[f['fwd_idx']]:,.0f}M).
 
 **What to watch.** Whether organic NGS ARR growth re-accelerates as the acquisitions annualize, and how cleanly the acquired revenue converts the elevated backlog into recognized revenue over the next 2-3 quarters.
 """

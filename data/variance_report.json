@@ -118,10 +118,7 @@
       "change": 2400.0,
       "change_pct": 15.0,
       "inorganic_part": 1800.0,
-      "inorganic_pct": 11.3,
-      "organic_part": 600.0,
-      "organic_pct": 3.8,
-      "unit": "$M"
+      "organic_part": 600.0
     },
     {
       "driver": "NGS ARR",
@@ -130,10 +127,7 @@
       "change": 1800.0,
       "change_pct": 28.6,
       "inorganic_part": 1600.0,
-      "inorganic_pct": 25.4,
-      "organic_part": 200.0,
-      "organic_pct": 3.2,
-      "unit": "$M"
+      "organic_part": 200.0
     }
   ]
 }

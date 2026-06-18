@@ -18,11 +18,9 @@ import pandas as pd
 
 from src import config
 
-# $3,002 million | $3.0 billion | $3.00B | $388M | $2,564 | $(50)M | 27.1% | +2.0%
-# Group 1: optional "(" (finance-style negative). Group 2: number. Group 3: unit.
+# $3,002 million | $3.0 billion | $388M | $2,564 | 27.1% | +2.0% | -1.9%
 _MONEY = re.compile(
-    r"\$\s?(\()?\s?([\d,]+(?:\.\d+)?)\)?\s?(billion|bn|million|mm|m|b)?\b",
-    re.IGNORECASE)
+    r"\$\s?([\d,]+(?:\.\d+)?)\s?(billion|bn|million|mm|m|b)?\b", re.IGNORECASE)
 _PCT = re.compile(r"([-+]?\d+(?:\.\d+)?)\s?%")
 
 
@@ -36,10 +34,8 @@ def _to_millions(num: float, unit: str | None) -> float:
 def parse_money(text: str) -> list[tuple[str, float]]:
     out = []
     for m in _MONEY.finditer(text):
-        val = _to_millions(float(m.group(2).replace(",", "")), m.group(3))
-        if m.group(1):  # leading "(" → finance-style negative, e.g. $(50)M
-            val = -val
-        out.append((m.group(0), val))
+        val = float(m.group(1).replace(",", ""))
+        out.append((m.group(0), _to_millions(val, m.group(2))))
     return out
 
 

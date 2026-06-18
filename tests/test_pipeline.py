@@ -372,39 +372,22 @@ def test_offline_chat_intents_verify(force_offline):
 
 # ----------------------------------------------- V3: verification harness / LLM
 def test_verify_passes_clean_numbers():
-    """A correct brief in the NEW app format ($X.XXB / $XXXM) still verifies — the
-    parser normalizes $B back to $M before matching (within rounding tolerance)."""
     from src import verify
     facts = verify.build_source_of_truth("FY2026Q3")
-    clean = ("Total revenue was $3.00B (organic $2.61B plus $388M from CyberArk and "
-             "Chronosphere), a +2.0% beat vs guidance of $2.94B.")
+    clean = ("Total revenue was $3,002 million; organic $2,614M plus $388M from "
+             "CyberArk and Chronosphere, a +2.0% beat vs guidance.")
     assert verify.verify_text(clean, facts) == []
-    # the legacy format must keep verifying too (back-compat)
-    legacy = "Total revenue was $3,002 million; organic $2,614M plus $388M, a +2.0% beat."
-    assert verify.verify_text(legacy, facts) == []
 
 
 def test_verify_catches_hallucinated_numbers():
-    """The HARD guardrail: a fabricated figure must be flagged — in the new format too."""
+    """The HARD guardrail: a fabricated figure must be flagged (negative test)."""
     from src import verify
     facts = verify.build_source_of_truth("FY2026Q3")
-    bad = "Revenue was $3.50B, up 99% — a record blowout."
+    bad = "Revenue was $3,500 million, up 99% — a record blowout."
     viol = verify.verify_text(bad, facts)
     raws = {v.raw for v in viol}
-    assert "$3.50B" in raws
+    assert "$3,500 million" in raws
     assert any("99%" == v.raw for v in viol)
-
-
-def test_verify_parses_parenthesized_negative():
-    """Finance-style negatives ($(50)M) normalize to the underlying negative value
-    BEFORE matching, so the display change can't sneak a wrong figure past the gate."""
-    from src import verify
-    assert verify.parse_money("a shortfall of $(50)M")[0][1] == -50.0
-    assert verify.parse_money("down $(1.50)B")[0][1] == -1500.0
-    # matches a negative truth value; a positive-only truth set catches it
-    assert verify.verify_text("$(50)M", {"money": {-50.0}, "pct": set()}) == []
-    viol = verify.verify_text("$(50)M", {"money": {50.0}, "pct": set()})
-    assert viol and viol[0].value == -50.0
 
 
 def test_offline_summary_verifies(force_offline):
