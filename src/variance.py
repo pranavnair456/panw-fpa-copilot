@@ -15,6 +15,7 @@ Run: python -m src.variance [FY2026Q3]
 """
 from __future__ import annotations
 from dataclasses import dataclass, field
+from decimal import Decimal, ROUND_HALF_UP
 import json
 import sys
 import numpy as np
@@ -22,6 +23,11 @@ import pandas as pd
 
 from src import config
 from src.forecast import run_forecast, load_conformal_errors
+
+
+def _pct1(x: float) -> float:
+    """One-decimal percent, rounded half-up (finance convention): 11.25 -> 11.3."""
+    return float(Decimal(str(x)).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP))
 
 
 def favorability(actual: float, plan: float, higher_is_better: bool = True,
@@ -135,10 +141,13 @@ def build_report(quarter: str = "FY2026Q3", df: pd.DataFrame | None = None) -> V
         cur, prev = float(row[col]), float(prior[col])
         chg = cur - prev
         inorg = float(row.get(inorg_col, 0) or 0)
+        org = chg - inorg
         return {
             "driver": name, "prior": round(prev, 1), "current": round(cur, 1),
             "change": round(chg, 1), "change_pct": round(chg / prev * 100, 1),
-            "inorganic_part": round(inorg, 1), "organic_part": round(chg - inorg, 1),
+            "inorganic_part": round(inorg, 1), "inorganic_pct": _pct1(inorg / prev * 100),
+            "organic_part": round(org, 1), "organic_pct": _pct1(org / prev * 100),
+            "unit": "$M",
         }
     driver_attr = pd.DataFrame([
         driver("RPO (backlog)", "rpo", "inorganic_rpo"),

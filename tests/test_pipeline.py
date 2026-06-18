@@ -174,6 +174,19 @@ def test_driver_attribution_splits_reconcile():
     assert np.allclose(recon, da["change"], atol=0.2)
 
 
+def test_driver_pct_split_reconciles():
+    """Acquisition % + Organic % must reconcile to the total Change % per driver."""
+    from src.variance import build_report
+    d = build_report("FY2026Q3").driver_attribution.set_index("driver")
+    for _, row in d.iterrows():
+        assert row["inorganic_pct"] + row["organic_pct"] == pytest.approx(
+            row["change_pct"], abs=0.2)
+    assert d.loc["RPO (backlog)", "inorganic_pct"] == 11.3
+    assert d.loc["RPO (backlog)", "organic_pct"] == 3.8
+    assert d.loc["NGS ARR", "inorganic_pct"] == 25.4
+    assert d.loc["NGS ARR", "organic_pct"] == 3.2
+
+
 def test_favorability_flips_for_cost_lines():
     from src.variance import favorability
     # revenue line: higher actual than plan is good

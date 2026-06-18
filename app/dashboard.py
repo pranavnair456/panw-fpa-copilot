@@ -131,11 +131,30 @@ COL_RENAME = {
     "variance_pct": "Variance %", "flag": "Status", "unit": "Unit",
     "driver": "Driver", "prior": "Prior", "current": "Current", "change": "Change",
     "change_pct": "Change %", "inorganic_part": "From acquisition", "organic_part": "Organic",
+    "inorganic_pct": "Acquisition %", "organic_pct": "Organic %",
 }
 
 
 def pretty_table(df_in):
     return df_in.rename(columns=COL_RENAME)
+
+
+# Plain row labels: drop the baseline already in the table title; make organic vs total explicit.
+LINE_RENAME = {
+    "Total revenue vs guidance midpoint": "Midpoint",
+    "Total revenue vs guidance low": "Low",
+    "Total revenue vs guidance high": "High",
+    "Product revenue vs forecast": "Product",
+    "Subscription & support vs forecast": "Subscription & support",
+    "Organic revenue vs forecast": "Organic revenue (like-for-like)",
+    "Total revenue vs forecast (organic basis)": "Total reported revenue (includes acquisition)",
+}
+
+
+def relabel_lines(df_in):
+    if "line" not in df_in.columns:
+        return df_in
+    return df_in.assign(line=df_in["line"].map(lambda x: LINE_RENAME.get(x, x)))
 
 
 def tint_variance(df_pretty):
@@ -149,6 +168,30 @@ def tint_variance(df_pretty):
         return [f"color:{c}; font-weight:600" if (col in ("Variance", "Variance %") and c)
                 else "" for col in cols]
     return df_pretty.style.apply(_row, axis=1)
+
+
+# Whole $M for money columns; one decimal for percents. No six-decimal floats shown to users.
+_NUM_FMT = {
+    "Actual": "{:,.0f}", "Plan": "{:,.0f}", "Variance": "{:,.0f}", "Variance %": "{:.1f}",
+    "Prior": "{:,.0f}", "Current": "{:,.0f}", "Change": "{:,.0f}", "Change %": "{:.1f}",
+    "From acquisition": "{:,.0f}", "Organic": "{:,.0f}",
+    "Acquisition %": "{:.1f}", "Organic %": "{:.1f}",
+}
+
+
+def fmt_numbers(obj):
+    """Apply whole-$M / one-decimal-% formatting to a DataFrame or Styler."""
+    styler = obj.style if isinstance(obj, pd.DataFrame) else obj
+    fmt = {c: f for c, f in _NUM_FMT.items() if c in styler.data.columns}
+    return styler.format(fmt)
+
+
+def variance_view(df):      # vs_guidance / segment / vs_forecast (F/U tinted)
+    return fmt_numbers(tint_variance(pretty_table(relabel_lines(df))))
+
+
+def driver_view(df):        # leading indicators (no F/U tint)
+    return fmt_numbers(pretty_table(df))
 
 
 def brand_layout(fig, height=420, ytitle="", xtitle=""):
@@ -478,23 +521,28 @@ with tab_var:
         c1, c2 = st.columns(2)
         with c1:
             st.markdown("**vs management guidance**")
-            st.dataframe(tint_variance(pretty_table(rep.vs_guidance)),
+            st.caption("Did we beat the revenue targets we told investors? Guidance already "
+                       "included the acquisition, so this beat is organic execution.")
+            st.dataframe(variance_view(rep.vs_guidance),
                          width="stretch", hide_index=True)
             st.markdown("**By segment (vs forecast)**")
-            st.dataframe(tint_variance(pretty_table(rep.segment_attribution)),
+            st.caption("How each revenue segment did vs. our forecast. Note: actuals include "
+                       "acquisition revenue but the forecast is organic, so these beats are inflated.")
+            st.dataframe(variance_view(rep.segment_attribution),
                          width="stretch", hide_index=True)
-            st.caption("Segment actuals include acquisition revenue; the organic split isn't "
-                       "disclosed, so these segment beats are inflated.")
         with c2:
             st.markdown("**Leading indicators (organic vs acquired)**")
-            st.dataframe(pretty_table(rep.driver_attribution),
+            st.caption("How much of our backlog (RPO) and ARR growth came from the core "
+                       "business vs. the acquisition. Organic % is the real underlying "
+                       "growth (~3–4%); the rest of the headline growth is the acquisition.")
+            st.dataframe(driver_view(rep.driver_attribution),
                          width="stretch", hide_index=True)
             st.markdown("**vs our forecast**")
-            st.dataframe(tint_variance(pretty_table(rep.vs_forecast)),
+            st.caption("Our forecast was organic. Row 1 is organic-to-organic (the real beat); "
+                       "row 2 compares total reported revenue, which includes the acquisition, "
+                       "to that organic forecast — the gap between them is the acquisition.")
+            st.dataframe(variance_view(rep.vs_forecast),
                          width="stretch", hide_index=True)
-        st.markdown("**Notes**")
-        for n in rep.notes:
-            st.markdown(f"- {md(n)}")
 
 # ============================================================== Anomalies tab
 with tab_anom:

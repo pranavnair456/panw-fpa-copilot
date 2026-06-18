@@ -210,7 +210,7 @@ A forecast tells you what you *expected*; **variance analysis** explains why rea
 - **A bridge that reconciles.** The centerpiece is a waterfall:
   `Forecast (organic) 2,564 → +50 organic outperformance → +388 inorganic (CyberArk + Chronosphere) → Actual 3,002`.
   The steps sum *exactly* to the actual (`test_variance_bridge_reconciles`) — a variance analysis with an unexplained residual is a broken one.
-- **Driver attribution.** For each leading indicator we split the quarter-over-quarter change into organic vs inorganic using PANW's own disclosures: RPO rose $2.4B (of which **$1.8B was CyberArk/Chronosphere**), NGS ARR rose $1.8B (**$1.6B acquired**). So the indicator surge was mostly M&A — consistent with the revenue beat being ~89% inorganic. The split reconciles to the total change (`test_driver_attribution_splits_reconcile`).
+- **Driver attribution.** For each leading indicator we split the quarter-over-quarter change into organic vs inorganic using PANW's own disclosures: RPO rose $2.4B (of which **$1.8B was CyberArk/Chronosphere**), NGS ARR rose $1.8B (**$1.6B acquired**). So the indicator surge was mostly M&A — consistent with the revenue beat being ~89% inorganic. The split reconciles to the total change (`test_driver_attribution_splits_reconcile`). The table also breaks the headline `Change %` into `Acquisition %` and `Organic %` (each as a % of the prior value, so they sum to `Change %` — `test_driver_pct_split_reconciles`), making the punchline explicit: **organic underlying growth was only ~3–4%** (RPO +3.8%, NGS ARR +3.2%) while the bulk of the headline RPO/ARR surge was the acquisition.
 - **No leakage here either.** The forecast used as the "plan" is trained only on quarters strictly before the actual (`test_variance_no_leakage`).
 - **Output is data, not prose.** Tables + a structured JSON (`data/variance_report.json`); the English narrative is deferred to Stage 5, where an LLM will narrate these *computed* numbers.
 
@@ -223,6 +223,9 @@ A forecast tells you what you *expected*; **variance analysis** explains why rea
 - No true price/volume split (no unit/ASP data for software) — we do segment-mix attribution and say so.
 - The $388M inorganic revenue isn't split by segment in disclosure, so segment-level beats are raw (inflated by M&A); flagged in the notes.
 - Timing vs permanent is partly inferred — internal bookings/pipeline data would make it definitive.
+
+### Reading the detail tables (display layer)
+The "full attribution" detail tables are relabeled and number-formatted **only in the dashboard** (`app/dashboard.py`: `LINE_RENAME`, `fmt_numbers`, `variance_view`) — `src/variance.py` keeps its precise rounded data and original line keys, so the saved JSON, the Stage 5 narrative, and the tests are untouched. For the non-technical viewer this means: each table title carries the *baseline* and a one-line plain-English caption (e.g. "Did we beat the targets we told investors?"), so the rows only need the *subject* — `Midpoint / Low / High`, `Product` / `Subscription & support`. In "vs our forecast" the two rows are spelled out as `Organic revenue (like-for-like)` (the real beat) and `Total reported revenue (includes acquisition)` (the gap between them *is* the acquisition). Dollars show as whole `$M` and percents to one decimal — no six-decimal noise.
 
 ### Interview questions you should now be able to answer
 1. *PANW beat — was it good?* Depends on the baseline: ~89% of the beat vs our forecast was the CyberArk/Chronosphere acquisition; vs guidance (which already embedded the deal) it was a ~$59M / +2% organic execution beat.
